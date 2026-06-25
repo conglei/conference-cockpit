@@ -10,6 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed-fixture.ts",
+    "seed-demo": "tsx scripts/seed-demo.ts",
+    "export-demo": "tsx scripts/export-demo.ts",
     "resolve": "tsx scripts/resolve.ts",
     "import-csv": "tsx scripts/import-csv.ts",
     "recover-domains": "tsx scripts/recover-domains.ts",
