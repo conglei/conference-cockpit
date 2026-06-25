@@ -78,6 +78,13 @@
       "when": 1782373772710,
       "tag": "0010_strong_gladiator",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1782374160600,
+      "tag": "0011_colossal_jane_foster",
+      "breakpoints": true
     }
   ]
 }

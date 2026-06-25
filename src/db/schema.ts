@@ -214,6 +214,53 @@ export const roles = sqliteTable(
 export type Role = typeof roles.$inferSelect;
 export type NewRole = typeof roles.$inferInsert;
 
+// --- talks (product-design.md §11 Phase 1) ---
+//
+// A conference session, linked to its speaker (a `people` row) and — denormalized
+// for the plan engine's company-first queries — that speaker's company. For the
+// MVP Career Mover lens talks are *metadata* ("where/when to catch your target"),
+// but they are first-class in the model so the Builder lens can rank them later.
+//
+// Dedupe key: a plain uniqueIndex on (speaker_id, title, time) makes re-ingesting
+// the same agenda idempotent (NULLs distinct, like the rest of the schema).
+export const talks = sqliteTable(
+  "talks",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    speakerId: integer("speaker_id")
+      .notNull()
+      .references(() => people.id),
+    /** The speaker's company at the event (denormalized off the speaker). */
+    companyId: integer("company_id").references(() => companies.id),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** Agenda day label as published, e.g. "Day 2 — Session Day 1". */
+    day: text("day"),
+    /** Time slot as published, e.g. "3:20pm-3:40pm". */
+    time: text("time"),
+    /** Room/stage, e.g. "Track 5". */
+    room: text("room"),
+    /** Track/topic, e.g. "Security", "Agents". */
+    track: text("track"),
+    /** Session type as published, e.g. "keynote", "sponsor", "workshop". */
+    type: text("type"),
+    source: text("source", { enum: SOURCE }),
+    sourceDetail: text("source_detail"),
+    raw: text("raw"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [
+    index("talks_speaker_ix").on(t.speakerId),
+    index("talks_company_ix").on(t.companyId),
+    index("talks_track_ix").on(t.track),
+    uniqueIndex("talks_dedupe_ux").on(t.speakerId, t.title, t.time),
+  ],
+);
+
+export type Talk = typeof talks.$inferSelect;
+export type NewTalk = typeof talks.$inferInsert;
+
 // --- applications (issue 08) ---
 
 export const APPLICATION_STATUS = [
