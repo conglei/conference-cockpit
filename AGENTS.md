@@ -10,13 +10,13 @@ trailer. See [`README.md`](README.md) and [`docs/product-design.md`](docs/produc
 
 ### Conference skills
 
-The user-facing skills (`plan-conference`, `who-to-meet`, `company-brief`,
-`met-log`, `draft-outreach`) live as Claude Code Agent Skills in
+The user-facing skills (`onboard`, `plan-conference`, `who-to-meet`,
+`company-brief`, `met-log`, `draft-outreach`) live as Claude Code Agent Skills in
 `.claude/skills/<name>/SKILL.md` — discoverable and auto-invocable via their
 `description` frontmatter, or runnable by a human with `/<name>`. Each is a thin
-runbook over a deterministic CLI (`pnpm conf-plan`, `pnpm who-to-meet`,
-`pnpm conf-brief`, `pnpm conf-followup`); see [ADR-0002](docs/adr/0002-skills-vs-clis.md)
-for the skills-vs-CLIs split.
+runbook over a deterministic CLI (`pnpm onboard`, `pnpm conf-plan`,
+`pnpm who-to-meet`, `pnpm conf-brief`, `pnpm conf-followup`); see
+[ADR-0002](docs/adr/0002-skills-vs-clis.md) for the skills-vs-CLIs split.
 
 ### Issue tracker
 

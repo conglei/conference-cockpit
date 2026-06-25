@@ -47,7 +47,7 @@ function readStdin(): string {
 }
 
 async function main(): Promise<void> {
-  console.log("Onboarding — Job Search Cockpit\n");
+  console.log("Onboarding — Conference Compass\n");
 
   // 1. Résumé ingest (optional; skip if no input given).
   const resumeArg = getArg("resume");
@@ -86,10 +86,13 @@ async function main(): Promise<void> {
   console.log(formatEnvCheck(detectProviderTiers(env)));
 
   console.log(
-    "\nNext: run the interview via the `onboard` skill to fill in preferences.md and narrative.md,",
+    "\nNext: run the `onboard` skill to fill in preferences.md + narrative.md from a quick interview,",
   );
   console.log(
-    "then seed companies as a separate step (source-companies / CSV import).",
+    "then `/plan-conference` (or `pnpm conf-plan`). The AIE 2026 demo is already seeded — importing a",
+  );
+  console.log(
+    "different conference is a separate, optional step (see the README's \"Bring your own conference\").",
   );
 }
 

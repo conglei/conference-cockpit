@@ -5,7 +5,7 @@ Date: 2026-06-23
 
 ## Context
 
-The Job Search Cockpit is a Claude Code project. The work is done by a set of
+Conference Compass is a Claude Code project. The work is done by a set of
 **skills** — Claude Code Agent Skills at `.claude/skills/<name>/SKILL.md` — that an
 **agent invokes, or a human runs manually**. Skills call deterministic
 TypeScript **CLIs** (e.g. `pnpm import-csv`, `pnpm resolve`) for mechanical work.

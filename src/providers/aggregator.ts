@@ -135,7 +135,7 @@ export async function crawlCompanyDomain(
       let res: Response;
       try {
         res = await fetchImpl(aggregatorUrl, {
-          headers: { "User-Agent": "Mozilla/5.0 (compatible; job-search-cockpit/1.0)" },
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; conference-cockpit/1.0)" },
         });
       } catch (cause) {
         // Network-level failure — transient, let p-retry back off and retry.

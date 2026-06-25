@@ -105,16 +105,23 @@ default; your [`profile/preferences.md`](profile/) re-ranks it to your taste).
 
 ### Use it from Claude Code
 
-The agent surface is five skills (judgment in the runbook, mechanics in CLIs —
+The agent surface is six skills (judgment in the runbook, mechanics in CLIs —
 see [ADR-0002](docs/adr/0002-skills-vs-clis.md)):
 
 | Skill | What it does | CLI |
 | --- | --- | --- |
+| `onboard` | capture your résumé + goals so ranking is *yours* (optional) | `pnpm onboard` |
 | `plan-conference` | the ranked company plan (company-first) | `pnpm conf-plan` |
 | `who-to-meet` | a people-first hit list, ranked directly | `pnpm who-to-meet` |
 | `company-brief` | one company, deep + sourced | `pnpm conf-brief <slug>` |
 | `met-log` | log who you met, track outcomes | `pnpm conf-followup` |
 | `draft-outreach` | personalize a draft (never sends) | `pnpm conf-brief <slug>` |
+
+**Make it yours (optional).** Out of the box the plan ranks *neutrally* (public
+facts). To rank by your taste — founder bar, domain, stage — run the `onboard`
+skill (or `pnpm onboard --resume <file>`): it interviews you and writes
+[`profile/preferences.md`](profile/), which the engine re-reads on every run. No
+code, no keys; `profile/` is gitignored and never committed.
 
 ### Bring your own conference (optional)
 
@@ -123,9 +130,9 @@ see [ADR-0002](docs/adr/0002-skills-vs-clis.md)):
 > seeded.
 
 The schema is conference-agnostic. Ingest a new event by importing its companies
-([`source-companies`](.claude/skills/)) and its agenda
+([`pnpm import-csv`](scripts/import-csv.ts)) and its agenda
 ([`pnpm ingest-talks <agenda.json>`](scripts/ingest-talks.ts), shaped like
-[`seed/aie-wf-2026.json`](seed/)), then enrich + score with the existing skills.
+[`seed/aie-wf-2026.json`](seed/)), then enrich + score with the CLIs below.
 
 #### Enrich for search & query
 

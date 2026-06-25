@@ -5,7 +5,7 @@ Date: 2026-06-23
 
 ## Context
 
-The Job Search Cockpit stores high-cardinality structured entities in SQLite (via Drizzle + better-sqlite3) and narrative/identity in markdown. Five issues each touch the schema (01 companies, 04 people, 05 scores, 07 roles, 08 applications). To avoid schema churn rippling across those issues, the **complete** data model is fixed here up front. Issues introduce tables incrementally but must conform to these definitions; any deviation requires amending this ADR.
+Conference Compass stores high-cardinality structured entities in SQLite (via Drizzle + better-sqlite3) and narrative/identity in markdown. Five issues each touch the schema (01 companies, 04 people, 05 scores, 07 roles, 08 applications). To avoid schema churn rippling across those issues, the **complete** data model is fixed here up front. Issues introduce tables incrementally but must conform to these definitions; any deviation requires amending this ADR.
 
 This record is the single source of truth for tables, fields, types, enums, relationships, and indexes. It deliberately over-specifies fields that later slices need (scores, connection fields, provenance, meta) so earlier migrations don't have to be rewritten.
 
