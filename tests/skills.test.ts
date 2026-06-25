@@ -3,7 +3,13 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const SKILLS_DIR = ".claude/skills";
-const EXPECTED = ["plan-conference", "company-brief", "who-to-meet"];
+const EXPECTED = [
+  "plan-conference",
+  "company-brief",
+  "who-to-meet",
+  "met-log",
+  "draft-outreach",
+];
 
 function frontmatter(md: string): Record<string, string> {
   const m = md.match(/^---\n([\s\S]*?)\n---/);

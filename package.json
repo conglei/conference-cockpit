@@ -27,6 +27,7 @@
     "ingest-talks": "tsx scripts/ingest-talks.ts",
     "conf-plan": "tsx scripts/conf-plan.ts",
     "conf-brief": "tsx scripts/conf-brief.ts",
+    "conf-followup": "tsx scripts/conf-followup.ts",
     "score": "tsx scripts/score.ts",
     "track": "tsx scripts/track.ts",
     "onboard": "tsx scripts/onboard.ts",
