@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 
 /** Top-level destinations, in display order. */
 const LINKS = [
+  { href: "/plan", label: "Plan" },
   { href: "/", label: "Companies" },
   { href: "/roles", label: "Roles" },
   { href: "/applications", label: "Applications" },
