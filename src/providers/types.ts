@@ -42,6 +42,18 @@ export interface CompanyResolution {
   description?: string;
   /** Bucketed headcount band (tiny/small/mid/large) when known. */
   sizeBand?: string;
+  /** Fine-grained industry label (Apollo `industry`). */
+  industry?: string;
+  /** Self-described focus terms (Apollo `keywords[]`), as a JSON array string. */
+  keywords?: string;
+  /** Headquarters location, composed from city/state/country. */
+  location?: string;
+  /** Founding year (Apollo `founded_year`). */
+  foundedYear?: number;
+  /** Raw headcount (Apollo `estimated_num_employees`); `sizeBand` is its bucket. */
+  headcount?: number;
+  /** Raw provider response (JSON string) to persist into `enrichment_blob`. */
+  raw?: string;
   /** Latest funding round name, e.g. "Series F" (Apollo `latest_funding_stage`). */
   latestRound?: string;
   /** Latest round amount with currency, e.g. "$1.5B". */

@@ -32,13 +32,22 @@ export interface EnrichCompanyInfoResult {
   notes: string[];
 }
 
-/** Firmographic fields this pass may persist (never people, never markdown). */
+/**
+ * String firmographic fields this pass may persist (never people, never
+ * markdown). The resolution key and the company column share a name, so they're
+ * copied generically. Numeric fields and the raw blob are handled explicitly
+ * after the loop.
+ */
 const FIRMOGRAPHIC_FIELDS = [
   "domain",
   "linkedinUrl",
   "description",
   "sizeBand",
   "linkedinCompanyId",
+  // Search/query firmographics (Apollo org-enrich).
+  "industry",
+  "keywords",
+  "location",
   // Funding firmographics (Apollo org-enrich); company-level, no founders.
   "latestRound",
   "latestAmount",
@@ -95,13 +104,20 @@ export async function enrichCompanyInfo(
   // present value with null/undefined. Identity collisions on domain/linkedin
   // would violate the partial-unique index — drop the conflicting field with a
   // note rather than throwing.
-  const patch: Record<string, string> = {};
+  const patch: Record<string, string | number> = {};
   for (const field of FIRMOGRAPHIC_FIELDS) {
     const value = resolution[field];
     if (typeof value === "string" && value.length > 0) {
       if ((field === "domain" || field === "linkedinUrl") && conflicts(field, value)) continue;
       patch[field] = value;
     }
+  }
+  // Numeric firmographics (column name === resolution key, but not strings).
+  if (typeof resolution.foundedYear === "number") patch.foundedYear = resolution.foundedYear;
+  if (typeof resolution.headcount === "number") patch.headcount = resolution.headcount;
+  // Keep the raw provider response so nothing we paid for is discarded.
+  if (typeof resolution.raw === "string" && resolution.raw.length > 0) {
+    patch.enrichmentBlob = resolution.raw;
   }
 
   if (Object.keys(patch).length > 0) {

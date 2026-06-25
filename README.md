@@ -107,6 +107,25 @@ The schema is conference-agnostic. Ingest a new event by importing its companies
 ([`pnpm ingest-talks <agenda.json>`](scripts/ingest-talks.ts), shaped like
 [`seed/aie-wf-2026.json`](seed/)), then enrich + score with the existing skills.
 
+### Enrich for search & query
+
+The conference graph is sharpened by a few idempotent passes (safe to re-run):
+
+```bash
+pnpm backfill-from-cache   # replay cached Apollo org-enrich into companies
+                           # (industry, keywords, location, founded, headcount) — zero API spend
+pnpm ingest-speakers       # speaker bios + photos onto people rows
+pnpm enrich-people         # deep per-person LinkedIn profile (work history, education,
+                           # headline, about) — ~$0.0064/person, cached on re-run
+pnpm roll-up-verticals     # company.verticals from speakers' talk tracks (e.g. "AI in Healthcare")
+pnpm ingest-embeddings     # per-speaker vectors for semantic search
+pnpm similar-speakers "<name>"   # "find speakers like this one" (offline, no embedding API)
+```
+
+`pnpm backfill-from-cache`/`ingest-speakers`/`ingest-embeddings` default to the
+live AIE feeds but accept a local snapshot path; nothing is overwritten with a
+blank, so re-running only fills gaps.
+
 ---
 
 ## Hard rules

@@ -107,8 +107,14 @@ export interface CompanyScore {
 
 /**
  * The lens seam. A lens re-ranks AND re-shapes the shared graph for one goal.
- * Career Mover is company-first; a future Recruiter lens would be people-first —
- * the lens decides the output *shape*, not just the sort order.
+ * Career Mover is company-first; the lens decides the output *shape*, not just
+ * the sort order.
+ *
+ * NOTE (ADR-0004): this interface is company-shaped (`scoreCompany` →
+ * `PlannedCompany`). The decided direction makes the **Person** the atomic unit
+ * (`scorePerson` → `PlannedPerson`, company demoted to an attribute). This seam
+ * is therefore SUPERSEDED and will be reshaped when the people-first lens lands;
+ * a people-first lens is NOT a drop-in over this interface.
  */
 export interface Lens {
   key: string;

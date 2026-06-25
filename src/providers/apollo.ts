@@ -136,11 +136,18 @@ export class ApolloProvider implements EnrichmentProvider {
     const org = data.organization;
     if (!org) return { via: this.name };
 
+    const headcount = asNumber(org.estimated_num_employees);
     return {
       domain: asString(org.primary_domain) ?? domain,
       linkedinUrl: asString(org.linkedin_url),
       description: asString(org.short_description),
-      sizeBand: bandFromHeadcount(asNumber(org.estimated_num_employees)),
+      sizeBand: bandFromHeadcount(headcount),
+      industry: asString(org.industry),
+      keywords: keywordsFrom(org),
+      location: orgLocationOf(org),
+      foundedYear: asNumber(org.founded_year),
+      headcount,
+      raw: JSON.stringify(org),
       ...fundingFrom(org),
       via: this.name,
     };
@@ -283,6 +290,25 @@ function locationOf(person: Record<string, unknown>): string | undefined {
     Boolean,
   );
   return parts.length > 0 ? parts.join(", ") : undefined;
+}
+
+/** Compose an org HQ location from Apollo's org-level city/state/country. */
+function orgLocationOf(org: Record<string, unknown>): string | undefined {
+  return locationOf(org);
+}
+
+/**
+ * Serialize Apollo `keywords[]` to a JSON array string (lower-cased, trimmed,
+ * de-duped). Returns undefined when there are none, so the persist pass skips it.
+ */
+function keywordsFrom(org: Record<string, unknown>): string | undefined {
+  if (!Array.isArray(org.keywords)) return undefined;
+  const seen = new Set<string>();
+  for (const k of org.keywords) {
+    const s = asString(k)?.toLowerCase().trim();
+    if (s) seen.add(s);
+  }
+  return seen.size > 0 ? JSON.stringify([...seen]) : undefined;
 }
 
 function asString(v: unknown): string | undefined {

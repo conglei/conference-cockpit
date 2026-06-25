@@ -23,6 +23,16 @@ export {
   type EnrichCompaniesInfoResult,
 } from "./enrich-company-info";
 export {
+  enrichPerson,
+  enrichPeople,
+  profileToPatch,
+  type EnrichPersonOptions,
+  type EnrichPersonResult,
+  type EnrichPeopleDeps,
+  type EnrichPeopleOptions,
+  type EnrichPeopleResult,
+} from "./enrich-person";
+export {
   renderCompanyDeepDive,
   renderPersonDeepDive,
   type CompanyDeepDiveContext,

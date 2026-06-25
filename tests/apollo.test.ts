@@ -56,6 +56,34 @@ describe("ApolloProvider (domain-first identity + roster)", () => {
     expect(r.via).toBe("apollo");
   });
 
+  // The widened firmographics: industry, keywords (deduped JSON), org location,
+  // founded year, raw headcount, and the raw org blob for persistence.
+  it("resolveCompany maps search/query firmographics from org-enrich", async () => {
+    const p = new ApolloProvider({
+      apiKey: "k",
+      fetchImpl: okJson({
+        organization: {
+          primary_domain: "acme.com",
+          industry: "hospital & health care",
+          keywords: ["Clinical Documentation", "clinical documentation", "Healthcare AI"],
+          city: "San Francisco",
+          state: "California",
+          country: "United States",
+          founded_year: 2021,
+          estimated_num_employees: 330,
+        },
+      }),
+    });
+    const r = await p.resolveCompany({ name: "Acme", domain: "acme.com" });
+    expect(r.industry).toBe("hospital & health care");
+    expect(JSON.parse(r.keywords!)).toEqual(["clinical documentation", "healthcare ai"]);
+    expect(r.location).toBe("San Francisco, California, United States");
+    expect(r.foundedYear).toBe(2021);
+    expect(r.headcount).toBe(330);
+    expect(r.sizeBand).toBe("mid");
+    expect(JSON.parse(r.raw!).primary_domain).toBe("acme.com");
+  });
+
   // org-enrich also carries funding: round name, the most-recent funding_event
   // (amount/lead investor/date), and the cumulative total.
   it("resolveCompany parses funding from an org-enrich payload", async () => {

@@ -86,6 +86,29 @@ export const companies = sqliteTable(
     description: text("description"),
     stage: text("stage"),
     category: text("category"),
+    /**
+     * Apollo's fine-grained industry label, e.g. "information technology &
+     * services". Distinct from `category` (the coarse CSV/gallery bucket like
+     * "DevTools"); kept separate so neither source clobbers the other.
+     */
+    industry: text("industry"),
+    /**
+     * Apollo `keywords[]` — the company's self-described focus terms (e.g.
+     * "clinical documentation", "single-cell rnaseq"). Stored as a JSON array
+     * string; the single richest field for keyword/vertical search.
+     */
+    keywords: text("keywords"),
+    /** Founding year (Apollo `founded_year`), when known. */
+    foundedYear: integer("founded_year"),
+    /** Raw headcount (Apollo `estimated_num_employees`); `sizeBand` is its bucket. */
+    headcount: integer("headcount"),
+    /**
+     * Conference verticals this company appears in, rolled up from the distinct
+     * `track`s of its speakers' talks (e.g. ["AI in Healthcare", "Security"]).
+     * JSON array string — the queryable taxonomy behind "show me healthcare
+     * companies". Derived, not from a provider.
+     */
+    verticals: text("verticals"),
     location: text("location"),
     workType: text("work_type", { enum: WORK_TYPE }),
     sizeBand: text("size_band"),
@@ -146,7 +169,33 @@ export const people = sqliteTable(
     companyId: integer("company_id").references(() => companies.id),
     relationship: text("relationship", { enum: RELATIONSHIP }).notNull(),
     title: text("title"),
+    /** Speaker bio as published in the conference directory (speakers.json). */
+    bio: text("bio"),
+    /** Speaker headshot URL from the conference directory (relative to ai.engineer). */
+    photoUrl: text("photo_url"),
+    /** Twitter/X profile, captured from the speakers-embeddings feed. */
+    twitterUrl: text("twitter_url"),
     linkedinUrl: text("linkedin_url"),
+    // --- Deep LinkedIn profile (harvest getProfile); filled by `enrich-people` ---
+    /** LinkedIn headline, e.g. "Member of Technical Staff at Anthropic". */
+    headline: text("headline"),
+    /** Free-text location, e.g. "United Kingdom" / "San Francisco Bay Area". */
+    location: text("location"),
+    /** LinkedIn "about"/summary section. */
+    about: text("about"),
+    /** Current employer name (from the profile's current position). */
+    currentCompany: text("current_company"),
+    /**
+     * Full work history as a JSON array of {company,title,start,end}. The signal
+     * behind founder-bar pedigree queries (e.g. ex-OpenAI/DeepMind/Anthropic).
+     */
+    workHistory: text("work_history"),
+    /** Education as a JSON array of {school,degree,field} — the researcher/faculty signal. */
+    education: text("education"),
+    /** Raw LinkedIn profile element (JSON), stored verbatim for anything not flattened. */
+    linkedinProfile: text("linkedin_profile"),
+    /** When the deep profile was last fetched (ms epoch); null = never enriched. */
+    profileEnrichedAt: integer("profile_enriched_at"),
     connectionDegree: integer("connection_degree"),
     canRefer: integer("can_refer", { mode: "boolean" }).notNull().default(false),
     enrichmentBlob: text("enrichment_blob"),
@@ -264,6 +313,43 @@ export const talks = sqliteTable(
 
 export type Talk = typeof talks.$inferSelect;
 export type NewTalk = typeof talks.$inferInsert;
+
+// --- speaker_embeddings (semantic search over the conference) ---
+//
+// One precomputed embedding per conference speaker (AIE speakers-embeddings.json,
+// Gemini 128-dim MRL vectors). Linked to a `people` row when we can match by name
+// (nullable: the feed has speakers not in our directory). SQLite has no native
+// vector type, so the vector is a JSON array of floats; cosine similarity runs in
+// the app layer. `external_id` (e.g. "worldsfair-speaker-0") is the feed's stable
+// key and the idempotent dedupe anchor.
+export const speakerEmbeddings = sqliteTable(
+  "speaker_embeddings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** Matched directory person, when found by name; null when unmatched. */
+    personId: integer("person_id").references(() => people.id),
+    /** Feed-stable id, e.g. "worldsfair-speaker-0". Dedupe key. */
+    externalId: text("external_id").notNull(),
+    name: text("name").notNull(),
+    role: text("role"),
+    company: text("company"),
+    /** Embedding model, e.g. "gemini-embedding-2-preview". */
+    model: text("model"),
+    /** Vector length actually stored (128 for the MRL-truncated feed). */
+    dimensions: integer("dimensions"),
+    /** JSON array of floats — the embedding vector. */
+    embedding: text("embedding").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("speaker_embeddings_external_id_ux").on(t.externalId),
+    index("speaker_embeddings_person_ix").on(t.personId),
+  ],
+);
+
+export type SpeakerEmbedding = typeof speakerEmbeddings.$inferSelect;
+export type NewSpeakerEmbedding = typeof speakerEmbeddings.$inferInsert;
 
 // --- applications (issue 08) ---
 
