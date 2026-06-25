@@ -11,7 +11,7 @@ import { DEFAULT_WEIGHTS } from "../src/scoring";
 const NOW = new Date("2026-06-25T00:00:00Z");
 const PROFILE: GoalProfile = {
   weights: DEFAULT_WEIGHTS,
-  prefilter: { stages: [], locations: [], categories: [], sizeBands: [], dealBreakers: [] },
+  prefilter: { stages: [], locations: [], categories: [], sizeBands: [] },
   summary: "Founding engineer, agents.",
 };
 
