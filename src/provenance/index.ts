@@ -58,6 +58,7 @@ const SOURCE_LABELS: Record<string, string> = {
   manual: "manual",
   browser: "web page",
   directory: "AIE 2026 directory",
+  llm: "taste review",
 };
 
 /** Sources whose values are low-confidence even when freshly dated. */
