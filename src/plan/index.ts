@@ -4,7 +4,7 @@
  * graph through a pluggable lens (Career Mover is the populated MVP lens).
  */
 export * from "./types";
-export { buildPlan, loadGraph, DEFAULT_PLAN_LIMIT } from "./plan";
+export { buildPlan, loadGraph, graphHasScores, DEFAULT_PLAN_LIMIT } from "./plan";
 export { loadGoalProfile } from "./profile";
 export { careerMoverLens } from "./career-mover";
 

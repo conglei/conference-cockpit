@@ -18,6 +18,23 @@ import type {
 
 export const DEFAULT_PLAN_LIMIT = 8;
 
+/**
+ * True when any company in the graph carries a persisted taste score. When false
+ * (a clean DB / fresh clone), the lens switches to neutral public-facts ranking
+ * so the demo still produces a plan instead of an empty one.
+ */
+export function graphHasScores(graph: PlanGraph): boolean {
+  return graph.companies.some(
+    (c) =>
+      c.scoreOverall != null ||
+      c.scoreFounderQuality != null ||
+      c.scoreInvestorQuality != null ||
+      c.scoreDomainFit != null ||
+      c.scoreStageFit != null ||
+      c.scoreSizeFit != null,
+  );
+}
+
 export function buildPlan(input: {
   lens: Lens;
   profile: GoalProfile;
@@ -26,7 +43,12 @@ export function buildPlan(input: {
   limit?: number;
 }): ConferencePlan {
   const now = input.now ?? new Date();
-  const ctx: PlanContext = { profile: input.profile, graph: input.graph, now };
+  const ctx: PlanContext = {
+    profile: input.profile,
+    graph: input.graph,
+    now,
+    neutralMode: !graphHasScores(input.graph),
+  };
 
   const scored = input.graph.companies
     .map((c) => ({ company: c, score: input.lens.scoreCompany(c, ctx) }))

@@ -18,3 +18,9 @@ people/
 
 # Scratch space for one-off import maps, run logs, etc.
 .scratch/
+
+# Claude Code local config — tool/editor-specific, per-machine. The product's
+# agent surface lives in `.claude/skills/` and IS committed; only local config
+# is ignored here.
+.claude/launch.json
+.claude/settings.local.json

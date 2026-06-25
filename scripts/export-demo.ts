@@ -1,12 +1,19 @@
 /**
- * One-off: export a privacy-safe demo snapshot of the enriched graph to
- * `seed/demo-snapshot.json`, so a fresh clone can run the demo without the 28 MB
- * working DB, scraped blobs, or any API keys.
+ * One-off: export a **clean, complete** snapshot of the conference graph to
+ * `seed/demo-snapshot.json`, so a fresh clone (or a deploy) can rebuild a full DB
+ * with no API keys and no working `.db`.
  *
- * Privacy (design §8 risk #4): public professional data only — we export
- * firmographics, funding, the public conference agenda, and the taste scores,
- * and we DROP enrichment_blob / deep_dive / score_verdict / notes and truncate
- * long role descriptions. Roles are limited to the scored (surfaced) companies.
+ * "Clean" (no taste, nothing tailored to one user): we DROP every `score_*`
+ * field, the score rationale/verdict, `enrichment_blob`, `deep_dive_path`, the
+ * raw `linkedin_profile` scrape, and the personal CRM columns
+ * (connection_degree, can_refer, outreach_status, next_action*, last_contacted).
+ * Ranking is NOT baked — the engine computes a neutral public-facts ranking when
+ * no `profile/preferences.md` is present, and a forker's taste re-ranks it.
+ *
+ * "Complete" (the whole public graph): ALL companies, ALL people (with their
+ * public profile — bio, photo, headline, work history, education), ALL talks,
+ * and ALL roles (not just the ones at scored companies). Role descriptions are
+ * truncated to keep the file reasonable.
  *
  * Run: DATABASE_URL=<abs path to conference.db> pnpm exec tsx scripts/export-demo.ts
  */
@@ -16,24 +23,28 @@ import { DB_URL } from "../src/db/client";
 
 const db = new Database(DB_URL, { readonly: true });
 
+// Companies — firmographics + funding + public identity. No score_* / rationale /
+// verdict / enrichment_blob / deep_dive_path / enrichment_cost (taste + scrape).
 const companies = db
   .prepare(
     `SELECT id, slug, name, domain, linkedin_url, linkedin_company_id, website_url,
-            recruiting_website, description, stage, category, location, work_type,
-            size_band, latest_round, latest_amount, last_funding_date, lead_investor,
-            funding_total, status, source, source_detail,
-            score_founder_quality, score_investor_quality, score_domain_fit,
-            score_stage_fit, score_size_fit, score_overall, score_rationale,
-            score_scored_by, scored_at, created_at, updated_at
+            recruiting_website, description, stage, category, industry, keywords,
+            founded_year, headcount, verticals, location, work_type, size_band,
+            latest_round, latest_amount, last_funding_date, lead_investor,
+            funding_total, status, source, source_detail, created_at, updated_at
      FROM companies`,
   )
   .all();
 
+// People — full public professional profile. No connection_degree / can_refer /
+// outreach_status / next_action* / last_contacted (personal CRM), no
+// enrichment_blob / notes_path / linkedin_profile (raw scrape). `relationship`
+// is kept only because the column is NOT NULL (a default label, not personal).
 const people = db
   .prepare(
     `SELECT id, slug, name, company_id, relationship, title, linkedin_url,
-            connection_degree, can_refer, outreach_status, next_action,
-            next_action_date, last_contacted_at, created_at, updated_at
+            twitter_url, bio, photo_url, headline, location, about,
+            current_company, work_history, education, created_at, updated_at
      FROM people`,
   )
   .all();
@@ -46,15 +57,14 @@ const talks = db
   )
   .all();
 
-// Roles only for scored companies (what the plan surfaces); truncate descriptions.
+// ALL roles across every company (job-first entry) — truncate long descriptions.
 const roles = (
   db
     .prepare(
       `SELECT id, company_id, title, url, location, work_type, description,
               posted_date, status, source, external_id, salary, last_seen_at,
               created_at, updated_at
-       FROM roles
-       WHERE company_id IN (SELECT id FROM companies WHERE score_overall IS NOT NULL)`,
+       FROM roles`,
     )
     .all() as { description: string | null }[]
 ).map((r) => ({
@@ -65,8 +75,13 @@ const roles = (
 const snapshot = {
   meta: {
     conference: "AI Engineer World's Fair 2026",
-    note: "Privacy-safe demo snapshot — public firmographic + agenda data only.",
-    counts: { companies: companies.length, people: people.length, talks: talks.length, roles: roles.length },
+    note: "Clean, complete conference graph — public firmographics, profiles, agenda & jobs. No taste scores, no personal CRM data; ranking is computed by the engine.",
+    counts: {
+      companies: companies.length,
+      people: people.length,
+      talks: talks.length,
+      roles: roles.length,
+    },
   },
   companies,
   people,

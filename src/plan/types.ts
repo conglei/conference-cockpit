@@ -76,6 +76,43 @@ export interface PlannedCompany {
   talkLogistics: string[];
 }
 
+/**
+ * A person worth meeting — the people-first atom (ADR-0004). Where
+ * `PlannedCompany` ranks a company and nests people, this ranks the *person*
+ * directly and carries the company as an attribute. Produced by the people-first
+ * `who-to-meet` path, not the company `Lens`.
+ */
+export interface PlannedPerson {
+  rank: number;
+  personId: number;
+  /** URL slug for linking to the person's detail page. */
+  slug: string;
+  name: string;
+  /** LinkedIn headline (falls back to the conference title). */
+  headline: string | null;
+  /** Employer as an attribute, not a gate. */
+  currentCompany: string | null;
+  companyId: number | null;
+  /** Their company's conference verticals (e.g. ["AI in Healthcare"]). */
+  verticals: string[];
+  /** Person score ∈ [0,1]. */
+  score: number;
+  /** One-line "why meet THIS person". */
+  whyLine: string;
+  /** Human-readable score contributions, strongest first. */
+  contributions: string[];
+  speaking: boolean;
+  talk?: TalkSlot;
+  /** The warm path in: connection + shared background. */
+  warmPath: { connectionDegree: number | null; canRefer: boolean; shared: string[] };
+  /** Pedigree flags driving the founder-bar (e.g. ["ex-OpenAI", "PhD"]). */
+  pedigree: string[];
+  linkedinUrl: string | null;
+  /** Plain, copy-ready opener the user will rewrite. */
+  opener: string;
+  provenance: Provenance;
+}
+
 /** The full plan: the ranked companies + how it was produced (for the UI header). */
 export interface ConferencePlan {
   lens: string;
@@ -96,6 +133,12 @@ export interface PlanContext {
   profile: GoalProfile;
   graph: PlanGraph;
   now: Date;
+  /**
+   * True when the graph carries NO persisted taste scores (a clean DB / a fresh
+   * clone). The lens then ranks by neutral public facts so the demo still works;
+   * otherwise unscored companies are excluded (taste mode). Defaults to false.
+   */
+  neutralMode?: boolean;
 }
 
 /** A lens's score for one company, with the contributions that explain it. */

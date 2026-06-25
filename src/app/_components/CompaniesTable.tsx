@@ -123,6 +123,7 @@ export default function CompaniesTable({
           <code>pnpm db:seed</code> to load fixtures.
         </p>
       ) : (
+        <div className="table-wrap">
         <table>
           <thead>
             <tr>
@@ -176,6 +177,7 @@ export default function CompaniesTable({
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </>
   );

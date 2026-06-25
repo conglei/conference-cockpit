@@ -1,6 +1,7 @@
 import { getDb } from "@/db/client";
 import { createCompanyRepo, createRoleRepo } from "@/db/repository";
-import RolesTable, { type RoleRow } from "../_components/RolesTable";
+import { roleProvenance, formatChip, isThin } from "@/provenance";
+import RolesExplorer, { type RoleRow } from "../_components/RolesTable";
 import { ROLE_SORT_KEYS, type RoleSortKey, type SortDir } from "@/ui/table-sort";
 
 // The DB is read at request time, not build time.
@@ -16,17 +17,19 @@ export default async function RolesPage({
   searchParams: Promise<{ status?: string; sort?: string; dir?: string }>;
 }) {
   const { status, sort, dir } = await searchParams;
-  const sortKey: RoleSortKey = isSortKey(sort) ? sort : "posted";
+  // Default sort is company fit — the decision axis for a company-first lens.
+  const sortKey: RoleSortKey = isSortKey(sort) ? sort : "fit";
   const sortDir: SortDir = dir === "asc" ? "asc" : "desc";
 
   const db = getDb();
   const roleRepo = createRoleRepo(db);
   const companyRepo = createCompanyRepo(db);
+  const now = new Date();
 
   // Fetch the FULL dataset (all statuses); filtering happens client-side.
   const roles = roleRepo.list();
-  // Resolve each role's company link via the data layer (no raw SQL), then
-  // flatten name/status/slug onto each row so the client can render + sort by it.
+  // Resolve each role's company once, then flatten name/slug/score/status onto
+  // each row so the client can render + rank by company fit without a DB call.
   const companyById = new Map(
     [...new Set(roles.map((r) => r.companyId))]
       .map((id) => companyRepo.get(id))
@@ -36,25 +39,41 @@ export default async function RolesPage({
 
   const rows: RoleRow[] = roles.map((r) => {
     const company = companyById.get(r.companyId);
+    const prov = roleProvenance(r, now);
     return {
       id: r.id,
       title: r.title,
       url: r.url,
       location: r.location,
+      workType: r.workType,
+      salary: r.salary,
+      description: r.description,
       postedDate: r.postedDate,
       status: r.status,
       source: r.source,
+      postedChip: formatChip(prov, now),
+      postedThin: isThin(prov, now),
       companyName: company?.name ?? null,
-      companyStatus: company?.status ?? null,
+      companySlug: company?.slug ?? null,
+      companyScore:
+        company?.scoreOverall != null
+          ? Math.round(company.scoreOverall * 100)
+          : null,
     };
   });
 
   return (
     <main>
-      <h1>Roles</h1>
-      <p className="subtitle">{rows.length} roles discovered (job-first entry)</p>
+      <p className="subtitle">
+        <a href="/">← The plan</a>
+      </p>
+      <h1>Open roles</h1>
+      <p className="subtitle">
+        {rows.length} roles across your target companies — ranked by company fit,
+        every posting dated.
+      </p>
 
-      <RolesTable
+      <RolesExplorer
         roles={rows}
         initialStatus={status}
         initialSort={sortKey}

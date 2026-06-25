@@ -33,6 +33,7 @@ export default async function WhoNextPage() {
           <code>pnpm find-referrers cross-ref &lt;slug&gt;</code>.
         </p>
       ) : (
+        <div className="table-wrap">
         <table>
           <thead>
             <tr>
@@ -72,6 +73,7 @@ export default async function WhoNextPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </main>
   );

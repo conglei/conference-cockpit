@@ -38,9 +38,12 @@ Career Mover plan — 8 of 22 ranked companies
    Opener: Hi Justin — planning to catch your talk … would love to say hi after.
 ```
 
-…or open the web view (`pnpm dev` → [/plan](http://localhost:3000/plan)) for the
-same plan as cards — every claim wearing a `source · as of` chip, the raw 488-name
-directory beside it for contrast.
+…or open the web view (`pnpm dev` → [localhost:3000](http://localhost:3000)) — a
+single narrative page that opens on the **488 → 8** contrast, shows how the plan
+came from *one question to your agent*, then the 8 cards with every claim wearing
+a `source · as of` chip (toggle the sources off to see what a scraper leaves you).
+Drill into any company or person for a sourced brief; **Explore** the underlying
+graph (Companies, Roles) from the nav.
 
 ---
 
@@ -73,19 +76,32 @@ The full design narrative — 8 rounds of self-critique — is in
 
 ---
 
-## Quickstart (fork it for your own conference)
+## Quickstart — clone and run in under a minute
 
 ```bash
 pnpm install
-cp .env.local.example .env.local 2>/dev/null || true   # optional; demo needs no keys
-pnpm db:migrate            # create the schema
-pnpm seed-demo             # load the committed AIE 2026 demo snapshot
-pnpm conf-plan             # the ranked plan in your terminal
-pnpm dev                   # the web view at /plan
+pnpm db:migrate            # create the schema (writes data/conference.db)
+pnpm seed-demo             # load the full AIE 2026 dataset from the committed snapshot
+pnpm dev                   # the web view at localhost:3000
+# or, in the terminal:
+pnpm conf-plan             # the ranked plan      ·  pnpm who-to-meet  # the people hit-list
 ```
 
-No API keys are needed to run the demo — it ships a privacy-safe snapshot
-([`seed/demo-snapshot.json`](seed/): public firmographic + agenda data only).
+That's the whole setup. **No API keys. No enrichment. No external services.**
+
+> **The data is already in the repo.** The committed snapshot
+> ([`seed/demo-snapshot.json`](seed/)) is the *complete* conference graph — all
+> **297 companies**, **488 speakers** (with bios + photos), **552 talks**, and
+> **2,373 open roles**. `pnpm seed-demo` loads every bit of it into a local
+> SQLite DB in seconds. You do **not** run any enrichment to use the demo — that
+> pipeline is only for [bringing your own conference](#bring-your-own-conference-optional).
+
+**On the data layout:** the working databases (`data/*.db`) are **gitignored**,
+not committed — `seed-demo` rebuilds `data/conference.db` from the snapshot, so a
+clone stays small and the demo is fully reproducible offline. The snapshot is
+*clean*: public firmographics, profiles, agenda, and jobs only — no taste scores
+and no personal data. The plan's ranking is computed by the engine (neutral by
+default; your [`profile/preferences.md`](profile/) re-ranks it to your taste).
 
 ### Use it from Claude Code
 
@@ -94,22 +110,28 @@ see [ADR-0002](docs/adr/0002-skills-vs-clis.md)):
 
 | Skill | What it does | CLI |
 | --- | --- | --- |
-| `plan-conference` | the ranked company plan | `pnpm conf-plan` |
+| `plan-conference` | the ranked company plan (company-first) | `pnpm conf-plan` |
+| `who-to-meet` | a people-first hit list, ranked directly | `pnpm who-to-meet` |
 | `company-brief` | one company, deep + sourced | `pnpm conf-brief <slug>` |
-| `who-to-meet` | a people-level hit list | `pnpm conf-plan --json` |
 | `met-log` | log who you met, track outcomes | `pnpm conf-followup` |
 | `draft-outreach` | personalize a draft (never sends) | `pnpm conf-brief <slug>` |
 
-### Bring your own conference
+### Bring your own conference (optional)
+
+> Everything below is **only** for pointing Compass at a *different* conference.
+> To run the AIE 2026 demo you can skip this entirely — the data is already
+> seeded.
 
 The schema is conference-agnostic. Ingest a new event by importing its companies
 ([`source-companies`](.claude/skills/)) and its agenda
 ([`pnpm ingest-talks <agenda.json>`](scripts/ingest-talks.ts), shaped like
 [`seed/aie-wf-2026.json`](seed/)), then enrich + score with the existing skills.
 
-### Enrich for search & query
+#### Enrich for search & query
 
-The conference graph is sharpened by a few idempotent passes (safe to re-run):
+The conference graph is sharpened by a few idempotent passes (safe to re-run).
+These need API keys (`cp .env.example .env.local`) and are **not** required for
+the demo:
 
 ```bash
 pnpm backfill-from-cache   # replay cached Apollo org-enrich into companies

@@ -2,32 +2,45 @@
 
 import { usePathname } from "next/navigation";
 
-/** Top-level destinations, in display order. */
-const LINKS = [
-  { href: "/plan", label: "Plan" },
-  { href: "/", label: "Companies" },
+/**
+ * Primary destination is the trailer (`/`). The data tables are secondary —
+ * "explore the underlying graph" — and live in a muted group so the home page
+ * reads as the product, not as one tab among five (product-design §11 Phase 4).
+ */
+const EXPLORE = [
+  { href: "/companies", label: "Companies" },
   { href: "/roles", label: "Roles" },
-  { href: "/applications", label: "Applications" },
   { href: "/who-next", label: "Who next" },
 ] as const;
 
-/**
- * Global nav bar rendered on every page (in `layout.tsx`). The active link is
- * marked via `data-active` so the styling in `globals.css` can highlight it.
- * `/` only matches exactly (otherwise it would light up on every route).
- */
 export default function Nav() {
   const pathname = usePathname();
+  const onHome = pathname === "/";
   return (
-    <nav className="app-nav" aria-label="primary">
-      {LINKS.map((l) => {
-        const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
-        return (
-          <a key={l.href} href={l.href} data-active={active}>
-            {l.label}
+    <header className="app-bar">
+      <div className="app-bar-inner">
+        <a className="brand" href="/" aria-label="Conference Compass — home">
+          <span className="brand-mark" aria-hidden="true" />
+          <span className="brand-name">Conference Compass</span>
+        </a>
+        <nav className="app-nav" aria-label="primary">
+          <a href="/" data-active={onHome}>
+            Who to meet
           </a>
-        );
-      })}
-    </nav>
+          <span className="app-nav-divider" aria-hidden="true" />
+          <span className="app-nav-group-label">explore</span>
+          {EXPLORE.map((l) => (
+            <a
+              key={l.href}
+              href={l.href}
+              data-active={pathname.startsWith(l.href)}
+              className="app-nav-secondary"
+            >
+              {l.label}
+            </a>
+          ))}
+        </nav>
+      </div>
+    </header>
   );
 }

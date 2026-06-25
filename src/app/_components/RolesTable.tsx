@@ -2,39 +2,43 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ROLE_STATUS } from "@/db/schema";
-import {
-  filterByStatus,
-  sortRoles,
-  type RoleSortKey,
-  type SortDir,
-} from "@/ui/table-sort";
+import { filterByStatus, type RoleSortKey, type SortDir } from "@/ui/table-sort";
 import { replaceQuery } from "./url-state";
 
-/** A plain-serializable role row plus its resolved company (passed by the server). */
+/** A plain-serializable role row enriched with its company's fit + freshness. */
 export type RoleRow = {
   id: number;
   title: string;
   url: string | null;
   location: string | null;
+  workType: string | null;
+  salary: string | null;
+  description: string | null;
   postedDate: string | null;
   status: string;
   source: string | null;
+  postedChip: string;
+  postedThin: boolean;
   companyName: string | null;
-  companyStatus: string | null;
+  companySlug: string | null;
+  companyScore: number | null;
 };
 
 const SORT_LABEL: Record<RoleSortKey, string> = {
+  fit: "Company fit",
+  posted: "Posted",
   title: "Title",
   company: "Company",
-  posted: "Posted",
 };
+const SORTS: RoleSortKey[] = ["fit", "posted", "title"];
 
 /**
- * Client-side Roles table: status filter + sort by title / company / posted
- * date, all in memory. Company name is resolved server-side and threaded
- * through each row so the client can render and sort by it without a DB call.
+ * Roles explorer: open roles as fit-anchored cards. A job-seeker scans by
+ * company fit (the decision axis for a company-first lens), with freshness
+ * sourced on every posting and the description on demand. Filter + sort run in
+ * memory; the active view mirrors into the URL so it stays deep-linkable.
  */
-export default function RolesTable({
+export default function RolesExplorer({
   roles,
   initialStatus,
   initialSort,
@@ -58,36 +62,28 @@ export default function RolesTable({
   }, [status, sort, dir]);
 
   const rows = useMemo(() => {
-    const sorted = sortRoles(filterByStatus(roles, status), sort, dir);
-    // `sortRoles` only carries the sort fields; re-attach full rows by id.
-    const byId = new Map(roles.map((r) => [r.id, r]));
-    return sorted.map((r) => byId.get(r.id)!);
+    const filtered = filterByStatus(roles, status);
+    const sign = dir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      let cmp = 0;
+      if (sort === "fit") cmp = (a.companyScore ?? -1) - (b.companyScore ?? -1);
+      else if (sort === "posted")
+        cmp = (a.postedDate ?? "").localeCompare(b.postedDate ?? "");
+      else if (sort === "title") cmp = a.title.localeCompare(b.title);
+      else cmp = (a.companyName ?? "").localeCompare(b.companyName ?? "");
+      // Tie-break by company fit so equal keys still surface strong companies.
+      if (cmp === 0) cmp = (a.companyScore ?? -1) - (b.companyScore ?? -1);
+      return cmp * sign;
+    });
   }, [roles, status, sort, dir]);
 
-  // Clicking the active column flips direction; a new column defaults to asc.
+  // Clicking the active sort flips direction; a new key defaults to desc.
   const onSort = (key: RoleSortKey) => {
     if (key === sort) setDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(key);
-      setDir("asc");
+      setDir(key === "title" ? "asc" : "desc");
     }
-  };
-
-  const header = (key: RoleSortKey) => {
-    const isActive = key === sort;
-    return (
-      <th>
-        <button
-          type="button"
-          className="th-sort"
-          data-active={isActive}
-          onClick={() => onSort(key)}
-        >
-          {SORT_LABEL[key]}
-          {isActive ? (dir === "asc" ? " ↑" : " ↓") : ""}
-        </button>
-      </th>
-    );
   };
 
   return (
@@ -114,6 +110,27 @@ export default function RolesTable({
         ))}
       </nav>
 
+      <nav className="filters" aria-label="sort roles">
+        <span className="muted" style={{ alignSelf: "center", marginRight: 4 }}>
+          sort:
+        </span>
+        {SORTS.map((key) => {
+          const active = key === sort;
+          return (
+            <button
+              key={key}
+              type="button"
+              className="filter"
+              data-active={active}
+              onClick={() => onSort(key)}
+            >
+              {SORT_LABEL[key]}
+              {active ? (dir === "asc" ? " ↑" : " ↓") : ""}
+            </button>
+          );
+        })}
+      </nav>
+
       {rows.length === 0 ? (
         <p className="empty">
           No roles{status !== "all" ? ` with status “${status}”` : ""}. Run{" "}
@@ -121,50 +138,66 @@ export default function RolesTable({
           some.
         </p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              {header("title")}
-              {header("company")}
-              <th>Location</th>
-              {header("posted")}
-              <th>Status</th>
-              <th>Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>
-                  {r.url ? (
-                    <a href={r.url} target="_blank" rel="noreferrer">
-                      <strong>{r.title}</strong>
-                    </a>
-                  ) : (
-                    <strong>{r.title}</strong>
-                  )}
-                </td>
-                <td>
-                  {r.companyName ? (
-                    <a href={`/?status=${r.companyStatus}`}>{r.companyName}</a>
-                  ) : (
-                    "—"
-                  )}
-                  {r.companyName ? (
-                    <div className="muted">{r.companyStatus}</div>
-                  ) : null}
-                </td>
-                <td>{r.location ?? "—"}</td>
-                <td>{r.postedDate ?? "—"}</td>
-                <td>
-                  <span className="status">{r.status}</span>
-                </td>
-                <td>{r.source ?? "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="role-cards">
+          {rows.map((r) => (
+            <RoleCard key={r.id} r={r} />
+          ))}
+        </div>
       )}
     </>
+  );
+}
+
+function RoleCard({ r }: { r: RoleRow }) {
+  const [open, setOpen] = useState(false);
+  const meta = [r.location, r.workType, r.salary].filter(Boolean).join(" · ");
+  return (
+    <article className="role-card">
+      <div className="role-card-head">
+        <h3 className="role-card-title">
+          {r.url ? (
+            <a href={r.url} target="_blank" rel="noreferrer">
+              {r.title} ↗
+            </a>
+          ) : (
+            r.title
+          )}
+        </h3>
+        {r.companySlug ? (
+          <a className="role-card-company" href={`/companies/${r.companySlug}`}>
+            {r.companyScore != null ? (
+              <span className="role-fit" title="Company fit score">
+                {r.companyScore}
+              </span>
+            ) : null}
+            {r.companyName}
+          </a>
+        ) : r.companyName ? (
+          <span className="role-card-company">{r.companyName}</span>
+        ) : null}
+      </div>
+
+      <div className="role-card-meta">
+        {meta ? <span>{meta}</span> : null}
+        <span className="prov-chip" data-thin={r.postedThin}>
+          {r.postedChip}
+        </span>
+        <span className="status">{r.status}</span>
+      </div>
+
+      {r.description ? (
+        <div className="role-card-desc">
+          <p data-open={open}>{r.description}</p>
+          <button
+            type="button"
+            className="role-card-more"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+          >
+            {open ? "Show less" : "Show description"}
+          </button>
+        </div>
+      ) : null}
+    </article>
   );
 }

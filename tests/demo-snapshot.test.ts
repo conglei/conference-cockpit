@@ -16,13 +16,34 @@ describe("demo snapshot fixture", () => {
     }
   });
 
-  it("is rankable — at least 8 scored companies for a full plan", () => {
-    const scored = snap.companies.filter((c: { score_overall: number | null }) => c.score_overall != null);
-    expect(scored.length).toBeGreaterThanOrEqual(8);
+  it("is clean — carries NO persisted taste scores (the engine ranks neutrally)", () => {
+    for (const c of snap.companies) {
+      for (const k of ["score_overall", "score_founder_quality", "score_domain_fit", "score_rationale"])
+        expect(c, c.slug).not.toHaveProperty(k);
+    }
   });
 
-  it("is privacy-safe — no scraped blobs / verdicts / notes leaked", () => {
-    const forbidden = ["enrichment_blob", "score_verdict", "deep_dive_path", "notes_path"];
+  it("is demo-complete — the WHOLE graph, including every job", () => {
+    // A fresh clone's `pnpm seed-demo` must yield the entire conference, not a
+    // scored subset — all companies, people, and ALL roles (not just surfaced).
+    expect(snap.companies.length).toBeGreaterThanOrEqual(200);
+    expect(snap.people.length).toBeGreaterThanOrEqual(400);
+    expect(snap.roles.length).toBeGreaterThanOrEqual(1000);
+  });
+
+  it("carries the public people profile the detail pages render", () => {
+    const withBio = snap.people.filter((p: { bio: string | null; about: string | null }) => p.bio || p.about);
+    const withPhoto = snap.people.filter((p: { photo_url: string | null }) => p.photo_url);
+    expect(withBio.length).toBeGreaterThan(snap.people.length * 0.5);
+    expect(withPhoto.length).toBeGreaterThan(snap.people.length * 0.5);
+  });
+
+  it("is privacy-safe — no scraped blobs / verdicts / notes / CRM leaked", () => {
+    const forbidden = [
+      "enrichment_blob", "score_verdict", "deep_dive_path", "notes_path",
+      "linkedin_profile", "connection_degree", "can_refer", "outreach_status",
+      "next_action", "last_contacted_at",
+    ];
     for (const c of snap.companies) for (const k of forbidden) expect(c).not.toHaveProperty(k);
     for (const p of snap.people) for (const k of forbidden) expect(p).not.toHaveProperty(k);
   });

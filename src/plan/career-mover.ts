@@ -60,6 +60,24 @@ function recentRaise(c: Company, now: Date): boolean {
   return f.ageDays != null && f.ageDays <= TIMING_WINDOW_DAYS;
 }
 
+/**
+ * Neutral, taste-free ranking from public facts — used when the company carries
+ * no persisted taste scores (a clean DB / no `preferences.md`). It is NOT a taste
+ * judgment: it just surfaces companies that are *meetable and active* at a
+ * conference — actively hiring, recently funded, with people you can meet. A
+ * forker's `preferences.md` re-ranks everything; this only keeps the demo alive.
+ */
+function neutralBase(c: Company, ctx: PlanContext): number {
+  let s = 0.2; // baseline so any real company clears the 0 exclusion
+  const roles = ctx.graph.rolesByCompany(c.id);
+  if (roles.length) s += Math.min(roles.length / 40, 1) * 0.3; // open doors
+  if (recentRaise(c, ctx.now)) s += 0.18; // timing
+  else if (c.lastFundingDate) s += 0.06;
+  if (c.fundingTotal || c.latestAmount) s += 0.12; // funded
+  if (ctx.graph.peopleByCompany(c.id).length) s += 0.08; // someone to meet
+  return Math.min(s, 0.92);
+}
+
 export const careerMoverLens: Lens = {
   key: "career-mover",
   label: "Career Mover",
@@ -69,8 +87,14 @@ export const careerMoverLens: Lens = {
     // Fit base: recombine sub-scores under the goal weights; fall back to the
     // persisted overall when sub-scores are absent; 0 ⇒ excluded from the plan.
     let base = 0;
+    let neutral = false;
     if (hasAnySub(sub)) base = combineOverall(sub, ctx.profile.weights);
     else if (company.scoreOverall != null) base = company.scoreOverall;
+    else if (ctx.neutralMode) {
+      base = neutralBase(company, ctx); // clean DB → neutral public-facts rank
+      neutral = true;
+    }
+    // else: taste DB with an unscored company → base stays 0 → excluded.
     if (base <= 0) return { score: 0, contributions: [] };
 
     const contributions: string[] = [];
@@ -78,17 +102,19 @@ export const careerMoverLens: Lens = {
     if ((sub.investor_quality ?? 0) >= 0.7) contributions.push("strong cap table");
     if ((sub.domain_fit ?? 0) >= 0.7) contributions.push("on-target domain");
 
-    // Garnish 1 — actively hiring (a job-seeker wants open doors). +0.04.
     const openRoles = ctx.graph.rolesByCompany(company.id);
     let boost = 0;
+    // In neutral mode `neutralBase` already weighs hiring + timing, so we only
+    // surface the contributions (for the why-line) — no double-counting boost.
     if (openRoles.length > 0) {
-      boost += 0.04;
+      if (!neutral) boost += 0.04; // garnish: actively hiring (a job-seeker wants open doors)
       contributions.push(`${openRoles.length} open role${openRoles.length > 1 ? "s" : ""}`);
     }
-    // Garnish 2 — recent raise (timing), penalized by funding provenance. ≤+0.05.
     if (recentRaise(company, ctx.now)) {
-      const prov = companyFundingProvenance(company, ctx.now);
-      boost += 0.05 * rankPenalty(prov, ctx.now);
+      if (!neutral) {
+        const prov = companyFundingProvenance(company, ctx.now);
+        boost += 0.05 * rankPenalty(prov, ctx.now); // garnish: recent raise, provenance-penalized
+      }
       contributions.push(`raised ${company.latestRound ?? "recently"}`);
     }
 
@@ -202,7 +228,7 @@ function buildWhyLine(company: Company, score: CompanyScore, ctx: PlanContext): 
       ? fit.join(" + ")
       : company.scoreRationale
         ? company.scoreRationale.split(/[.;]/)[0]
-        : `${company.category ?? "AI"} company that fits your taste`;
+        : `${company.industry ?? company.category ?? "AI"} company`;
   const clauses = [cap(lead)];
   const roles = ctx.graph.rolesByCompany(company.id);
   if (roles.length) clauses.push(`${roles.length} open role${roles.length > 1 ? "s" : ""}`);

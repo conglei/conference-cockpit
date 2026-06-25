@@ -28,9 +28,10 @@ Claude invokes the `plan-conference` skill → `pnpm conf-plan`.
   as of 5 months ago. Thin signals get flagged, not hidden."*
 - Point at **who to meet** — *"and it knows who's speaking, and when."*
 
-**0:40 — the web view (12s).** Cut to [/plan](http://localhost:3000/plan): the
-same plan as cards, source chips on every line, the 488-name list beside it.
-Click **Copy opener**. Voiceover: *"Draft openers you'll rewrite — it never sends
+**0:40 — the web view (12s).** Cut to [localhost:3000](http://localhost:3000): the
+home page opens on the 488 → 8 contrast, then the plan as cards with source chips
+on every line. Toggle **Sources off** to show what a scraper leaves you, then
+click **Copy opener**. Voiceover: *"Draft openers you'll rewrite — it never sends
 anything for you."*
 
 **0:52 — the kicker (8s).** Voiceover over the README: *"Open source, runs from

@@ -1,48 +1,75 @@
 ---
 name: who-to-meet
-description: "Assemble a people-level hit list for a conference — the specific speakers/attendees worth meeting across your target companies, each with their talk slot and a warm-path note. Use when the user wants names and where to find them rather than a company ranking."
+description: "Assemble a people-first hit list for a conference — the specific people worth meeting ranked directly (not gated by a company shortlist), each with why-meet, their talk slot, a warm-path note, and a draft opener. Use when the user wants names and where to find them."
 ---
 
 # Skill: `who-to-meet`
 
-The **people view** of the plan. `plan-conference` ranks companies; this answers
-"so *who* do I actually walk up to, and where will they be?" It reads the same
-plan — no separate ranking — and flattens the nested `whoToMeet` into a single
-prioritized people list.
+The **people-first doorway** (ADR-0004). At a conference you meet *people*, so this
+ranks the **person** as the atomic unit — across the whole graph, not gated by a
+company shortlist — and carries the company as an attribute. This is the inverse
+of the old flow (which ranked companies and nested people, so anyone at company
+#9+ was invisible).
 
 ## Run it
 
-The data already exists in the plan; pull it structured and assemble:
-
 ```bash
-pnpm conf-plan --json        # whoToMeet[] is nested under each company
-pnpm conf-brief <slug> --json # the people for one target company
+pnpm who-to-meet                              # top 12 overall, by your taste
+pnpm who-to-meet --vertical Healthcare        # scope to one vertical (AI in Healthcare, …)
+pnpm who-to-meet --intent learner --vertical Healthcare  # rank by on-topic depth, not pedigree
+pnpm who-to-meet --speaking                   # only people with a fixed talk slot
+pnpm who-to-meet --limit 20
+pnpm who-to-meet --json                       # structured PlannedPerson[] (provenance on each)
 ```
 
-From the JSON, build the hit list (judgment):
+**Intent drives the lens** (ADR-0004). `--intent career-mover` (default) prizes the
+founder-bar pedigree; `--intent learner` prizes on-topic depth + reachability (you
+learn by attending the talk) and downweights ex-FAANG pedigree — so a
+clinician-founder who'd rank low for a job hunt rises to the top for learning a
+space. Same engine, different objective.
 
-1. **Speakers first.** Anyone with `speaking: true` has a fixed time/room and a
-   built-in opener ("caught your talk") — these are the cheapest, warmest
-   approaches. List them with `talk.day / time / room`.
-2. **Then by connection.** Lower `connectionDegree` = warmer; surface 1st/2nd
-   degree before cold contacts.
-3. **Tie to the company's why.** For each person, one line on why their company is
-   a target (from the plan's why-line) so the user knows what to talk about.
-4. **Provenance.** Each person carries a `provenance` (the AIE directory + "as
-   of"); if a detail is stale, flag it rather than presenting it as current.
+It ranks against `profile/preferences.md` (taste) and `profile/resume.md` (for
+warm paths). Each person comes back with a **score**, a **why-meet** line, their
+**talk slot** (when/where to catch them), the **warm path** in, **pedigree**
+flags, and a **draft opener**.
 
-Aim for a **~12-person walkable list**, grouped by day/track so the user can plan
-their floor route around talk times.
+## How a person is scored (the signals)
+
+- **Pedigree (the founder-bar)** — *past* top-lab / big-tech employers (never the
+  current one) from `work_history`; a PhD / research title from `education`; a
+  founder/exec title.
+- **Warm path** — connection degree, can-refer, and **shared employer/school**
+  between you (resume) and the person.
+- **Reachability** — speaking ⇒ a concrete time/place to meet (a boost).
+- **Role fit** — technical IC / leadership (the Career Mover taste).
+- **Company fit** — the employer's taste score + vertical match, as a *feature*,
+  not a gate.
+
+## Curate + explain (judgment)
+
+The CLI ranks; you make it land:
+
+1. **Group by day/track** so the user can plan a floor route around talk times —
+   aim for a **~12-person walkable list**.
+2. **Lead with the why-meet**, and read provenance honestly — if a profile detail
+   is stale, flag it rather than presenting it as current.
+3. **Mind the lens.** Ranking is the Career Mover taste (founder-bar dominant), so
+   it can *underrate* domain-deep people without big-tech pedigree (e.g. a
+   clinician-founder in healthcare). Say so, and surface them anyway when the
+   user's real intent is "learn the space."
+4. **Openers are drafts** the user rewrites — never send (that's `draft-outreach`).
 
 ## What it does NOT do
 
-- No ranking of its own (it reuses the plan), no outreach (that's
-  `draft-outreach` / `met-log`), no proximity/live features (out of MVP scope —
-  reverse-lookup only; see `docs/product-design.md` §9).
+- No outreach (that's `draft-outreach` / `met-log`), no proximity/live features
+  (reverse-lookup only; see `docs/product-design.md` §9).
+- It does not re-enrich — it ranks what's in the graph (run the enrich passes
+  first: `enrich-people`, `roll-up-verticals`).
 
 ## Implementation map
 
 | Step | Code | CLI |
 | --- | --- | --- |
-| Nested people + talk slots | `src/plan/career-mover.ts` (`buildPlanned` → `whoToMeet`) | `pnpm conf-plan --json` |
-| Talk slots | `src/db/talk-repository.ts` (`bySpeaker`) | — |
+| Person scorer + ranker | `src/plan/who-to-meet.ts` (`scorePerson`, `rankPeople`) | `pnpm who-to-meet` |
+| The atom | `src/plan/types.ts` (`PlannedPerson`) | — |
+| Taste + warm-path inputs | `src/plan/profile.ts` (`loadGoalProfile`) · `extractBackground` | reads `profile/*.md` |

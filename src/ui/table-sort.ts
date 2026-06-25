@@ -22,8 +22,8 @@ export function filterByStatus<T extends { status: string }>(
 
 // --- roles ---
 
-/** The columns a user can sort the roles table by. */
-export const ROLE_SORT_KEYS = ["title", "company", "posted"] as const;
+/** The keys a user can sort the roles view by. `fit` = company fit score. */
+export const ROLE_SORT_KEYS = ["fit", "title", "company", "posted"] as const;
 export type RoleSortKey = (typeof ROLE_SORT_KEYS)[number];
 
 /** The minimal role shape the sorter needs (mirrors `RolesTable` rows). */
@@ -59,6 +59,10 @@ function roleField(r: SortableRole, key: RoleSortKey): string | null {
       return r.companyName;
     case "posted":
       return r.postedDate;
+    // `fit` ranks by company score (numeric) — handled by the client explorer,
+    // not this string sorter; treat as no-op here.
+    case "fit":
+      return null;
   }
 }
 
