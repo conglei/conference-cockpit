@@ -1,0 +1,20 @@
+node_modules/
+.env.local
+.env
+data/
+.next/
+dist/
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+
+# Private user profile — résumé, preferences, narrative. All personal; never
+# committed. Onboarding scaffolds these locally from in-code starter templates.
+profile/
+
+# Generated enrichment deep-dives (regenerable; contain scraped personal data).
+companies/
+people/
+
+# Scratch space for one-off import maps, run logs, etc.
+.scratch/

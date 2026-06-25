@@ -1,0 +1,160 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --chip: #f3f4f6;
+  --accent: #2563eb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0b0c;
+    --fg: #ededed;
+    --muted: #9ca3af;
+    --border: #27272a;
+    --chip: #1c1c1f;
+    --accent: #60a5fa;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+nav.app-nav {
+  display: flex;
+  gap: 1.25rem;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0.85rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+nav.app-nav a {
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+nav.app-nav a:hover {
+  color: var(--fg);
+}
+
+nav.app-nav a[data-active="true"] {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 0.25rem;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin: 0 0 1.5rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.filter {
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  text-decoration: none;
+  /* `.filter` is used on both <a> links and <button> elements (interactive
+     client tables); normalize buttons to match the link look. */
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.filter[data-active="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* Sortable column header: a button styled to look like the <th> label. */
+.th-sort {
+  font: inherit;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.th-sort[data-active="true"] {
+  color: var(--fg);
+}
+
+.status {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--chip);
+}
+
+.empty {
+  color: var(--muted);
+  padding: 2rem 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+td[data-axis="active"] {
+  background: var(--chip);
+  font-weight: 600;
+}

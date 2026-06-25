@@ -1,0 +1,1 @@
+ALTER TABLE `companies` ADD `funding_total` text;

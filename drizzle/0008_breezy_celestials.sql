@@ -1,0 +1,1 @@
+ALTER TABLE `companies` ADD `recruiting_website` text;

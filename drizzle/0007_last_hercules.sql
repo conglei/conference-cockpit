@@ -1,0 +1,1 @@
+ALTER TABLE `companies` ADD `linkedin_company_id` text;

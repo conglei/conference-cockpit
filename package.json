@@ -1,0 +1,58 @@
+{
+  "name": "conference-cockpit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed-fixture.ts",
+    "resolve": "tsx scripts/resolve.ts",
+    "import-csv": "tsx scripts/import-csv.ts",
+    "recover-domains": "tsx scripts/recover-domains.ts",
+    "crawl-aggregator": "tsx scripts/crawl-aggregator.ts",
+    "unresolved": "tsx scripts/unresolved.ts",
+    "needs-founders": "tsx scripts/needs-founders.ts",
+    "refresh": "tsx scripts/refresh.ts",
+    "enrich-company": "tsx scripts/enrich-company.ts",
+    "enrich-batch": "tsx scripts/enrich-batch.ts",
+    "enrich-companies": "tsx scripts/enrich-companies.ts",
+    "find-jobs": "tsx scripts/find-jobs.ts",
+    "prune-roles": "tsx scripts/prune-roles.ts",
+    "find-referrers": "tsx scripts/find-referrers.ts",
+    "reach-out": "tsx scripts/reach-out.ts",
+    "score": "tsx scripts/score.ts",
+    "track": "tsx scripts/track.ts",
+    "onboard": "tsx scripts/onboard.ts",
+    "env:check": "tsx scripts/env-check.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "drizzle-orm": "^0.45.2",
+    "next": "^15.5.19",
+    "p-retry": "^8.0.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

@@ -1,0 +1,1 @@
+ALTER TABLE `companies` ADD `enrichment_cost` real;
