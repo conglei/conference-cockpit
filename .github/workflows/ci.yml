@@ -1,0 +1,58 @@
+name: CI
+
+# Gate merges on a green typecheck, tests, and a working clone-and-seed path.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      # Demo runs offline with no keys; force the fake (canned) provider tier.
+      ENRICHMENT_PROVIDER: fake
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Seed smoke test (the clone-and-run path)
+        env:
+          DATABASE_URL: /tmp/ci-conference.db
+        run: |
+          pnpm db:migrate
+          pnpm seed-demo
+          node -e "
+            const D = require('better-sqlite3');
+            const db = new D(process.env.DATABASE_URL, { readonly: true });
+            const n = (s) => db.prepare(s).get().n;
+            const c = {
+              companies: n('select count(*) n from companies'),
+              people: n('select count(*) n from people'),
+              talks: n('select count(*) n from talks'),
+              roles: n('select count(*) n from roles'),
+            };
+            console.log('seeded:', JSON.stringify(c));
+            if (c.companies < 200 || c.people < 400 || c.roles < 1000) {
+              console.error('Seed is incomplete — the committed snapshot regressed.');
+              process.exit(1);
+            }
+          "
+
+      - name: Typecheck + build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
