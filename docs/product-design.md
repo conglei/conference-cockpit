@@ -441,6 +441,11 @@ attendees and retire §8 risk #1 (goal cold-start) with their reactions.
 
 ## 11. Build plan (v3-final → shippable on AIE 2026 data)
 
+> **STATUS: BUILT ✅ (all phases 0–6).** Engine + 5 Claude Code skills + the
+> `/plan` web showcase + follow-up + a forkable demo snapshot, 333 tests green.
+> Run it: `pnpm db:migrate && pnpm seed-demo && pnpm conf-plan` (terminal) or
+> `pnpm dev` → `/plan` (web). See [README](../README.md) + [DEMO](DEMO.md).
+
 Sequenced to get to the **demo hero (488 → 8, sourced, via the assistant)** on the
 shortest path, then harden. Each phase ends at something demoable.
 
