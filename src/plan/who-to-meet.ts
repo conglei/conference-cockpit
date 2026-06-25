@@ -368,7 +368,7 @@ function shape(s: Scored, rank: number, now: Date): PlannedPerson {
   };
 }
 
-function buildWhyLine(s: Scored): string {
+export function buildWhyLine(s: Scored): string {
   const lead = s.contributions.slice(0, 3);
   if (lead.length === 0) {
     return `${s.person.headline ?? s.person.title ?? "Attendee"}${s.company ? ` at ${s.company.name}` : ""}`;
@@ -376,7 +376,7 @@ function buildWhyLine(s: Scored): string {
   return lead.map(cap).join(" · ");
 }
 
-function buildOpener(s: Scored): string {
+export function buildOpener(s: Scored): string {
   const first = s.person.name.split(/\s+/)[0] ?? s.person.name;
   const t = s.talks[0];
   const sharedClause = s.shared.length ? ` (we both ${s.shared[0]})` : "";

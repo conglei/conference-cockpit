@@ -13,8 +13,10 @@ next-env.d.ts
 profile/
 
 # Generated enrichment deep-dives (regenerable; contain scraped personal data).
-companies/
-people/
+# Anchored to the repo root so they don't also swallow the app routes
+# `src/app/companies/` and `src/app/people/`.
+/companies/
+/people/
 
 # Scratch space for one-off import maps, run logs, etc.
 .scratch/

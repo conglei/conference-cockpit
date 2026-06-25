@@ -147,7 +147,7 @@ export default function CompaniesTable({
                     <strong>{c.name}</strong>
                   </a>
                   {c.description ? (
-                    <div className="muted">{c.description}</div>
+                    <div className="muted company-desc">{c.description}</div>
                   ) : null}
                 </td>
                 <td>{c.stage ?? "—"}</td>

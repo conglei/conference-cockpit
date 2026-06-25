@@ -65,7 +65,7 @@ export default async function RolesPage({
   return (
     <main>
       <p className="subtitle">
-        <a href="/">← The plan</a>
+        <a href="/">← Who to meet</a>
       </p>
       <h1>Open roles</h1>
       <p className="subtitle">

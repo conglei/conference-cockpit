@@ -17,7 +17,7 @@ export default async function WhoNextPage() {
   return (
     <main>
       <p className="subtitle">
-        <a href="/">← Companies</a>
+        <a href="/">← Who to meet</a>
       </p>
       <h1>Who next</h1>
       <p className="subtitle">
