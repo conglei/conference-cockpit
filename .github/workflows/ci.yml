@@ -32,15 +32,15 @@ jobs:
         run: |
           pnpm db:migrate
           pnpm seed-demo
-          node -e "
-            const D = require('better-sqlite3');
-            const db = new D(process.env.DATABASE_URL, { readonly: true });
-            const n = (s) => db.prepare(s).get().n;
+          node --input-type=module -e "
+            import { createClient } from '@libsql/client';
+            const db = createClient({ url: 'file:' + process.env.DATABASE_URL });
+            const n = async (s) => Number((await db.execute(s)).rows[0].n);
             const c = {
-              companies: n('select count(*) n from companies'),
-              people: n('select count(*) n from people'),
-              talks: n('select count(*) n from talks'),
-              roles: n('select count(*) n from roles'),
+              companies: await n('select count(*) n from companies'),
+              people: await n('select count(*) n from people'),
+              talks: await n('select count(*) n from talks'),
+              roles: await n('select count(*) n from roles'),
             };
             console.log('seeded:', JSON.stringify(c));
             if (c.companies < 200 || c.people < 400 || c.roles < 1000) {
