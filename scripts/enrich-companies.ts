@@ -14,7 +14,7 @@
  * defaults to fake (offline). Missing keys degrade gracefully with a note.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { COMPANY_STATUS, type CompanyStatus } from "../src/db/schema";
 import { createProvider } from "../src/providers";
@@ -58,20 +58,20 @@ async function main() {
 
   const slugs = args; // any remaining positionals are slugs
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const companies = createCompanyRepo(db);
 
   let targets;
   if (slugs.length) {
-    targets = slugs
-      .map((s) => companies.getBySlug(s))
-      .filter((c): c is NonNullable<typeof c> => Boolean(c));
+    targets = (await Promise.all(slugs.map((s) => companies.getBySlug(s)))).filter(
+      (c): c is NonNullable<typeof c> => Boolean(c),
+    );
     if (targets.length === 0) {
       console.error(`No company found for slug(s): ${slugs.join(", ")}.`);
       process.exit(1);
     }
   } else {
-    targets = companies.list(status ? { status } : undefined);
+    targets = await companies.list(status ? { status } : undefined);
   }
 
   const providerKind = (process.env.ENRICHMENT_PROVIDER ?? "fake").toLowerCase();

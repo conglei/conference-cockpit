@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { createClient, type Client } from "@libsql/client";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
@@ -85,9 +85,11 @@ function sortUrlParams(url: string): string {
  */
 export class ResponseCache {
   private readonly off: boolean;
-  private db: Database.Database | undefined;
+  private client: Client | undefined;
   /** True once we've given up on the file (open failed) — degrade to live. */
   private disabled = false;
+  /** Lazily-run, once: CREATE TABLE. Resolves to false if the cache degraded. */
+  private ready: Promise<boolean> | undefined;
 
   constructor(opts: { dbPath: string; off?: boolean }) {
     this.off = opts.off ?? false;
@@ -97,18 +99,8 @@ export class ResponseCache {
     }
     try {
       if (opts.dbPath !== ":memory:") mkdirSync(dirname(opts.dbPath), { recursive: true });
-      const db = new Database(opts.dbPath);
-      db.exec(
-        `CREATE TABLE IF NOT EXISTS api_cache(
-          key TEXT PRIMARY KEY,
-          provider TEXT,
-          request TEXT,
-          response TEXT,
-          status INTEGER,
-          created_at INTEGER
-        )`,
-      );
-      this.db = db;
+      const url = opts.dbPath === ":memory:" ? ":memory:" : `file:${opts.dbPath}`;
+      this.client = createClient({ url });
     } catch (cause) {
       // Never crash a run on a cache-file problem: warn once, degrade to live.
       this.disabled = true;
@@ -118,14 +110,46 @@ export class ResponseCache {
     }
   }
 
+  /** Ensure the schema exists (run once). Degrades to live on any failure. */
+  private async ensureReady(): Promise<boolean> {
+    if (this.disabled || !this.client) return false;
+    if (!this.ready) {
+      const client = this.client;
+      this.ready = client
+        .execute(
+          `CREATE TABLE IF NOT EXISTS api_cache(
+            key TEXT PRIMARY KEY,
+            provider TEXT,
+            request TEXT,
+            response TEXT,
+            status INTEGER,
+            created_at INTEGER
+          )`,
+        )
+        .then(() => true)
+        .catch((cause) => {
+          this.disabled = true;
+          console.warn(
+            `[api-cache] could not initialize cache; running live (no cache). Cause: ${String(cause)}`,
+          );
+          return false;
+        });
+    }
+    return this.ready;
+  }
+
   /** Look up a cached response; undefined when off, degraded, or a miss. */
-  get(key: string): CachedResponse | undefined {
-    if (this.disabled || !this.db) return undefined;
+  async get(key: string): Promise<CachedResponse | undefined> {
+    if (!(await this.ensureReady()) || !this.client) return undefined;
     try {
-      const row = this.db
-        .prepare("SELECT response, status FROM api_cache WHERE key = ?")
-        .get(key) as { response: string; status: number } | undefined;
-      return row ? { response: row.response, status: row.status } : undefined;
+      const result = await this.client.execute({
+        sql: "SELECT response, status FROM api_cache WHERE key = ?",
+        args: [key],
+      });
+      const row = result.rows[0];
+      return row
+        ? { response: String(row.response), status: Number(row.status) }
+        : undefined;
     } catch {
       // A read error must never propagate to a caller — degrade to a miss.
       return undefined;
@@ -133,12 +157,11 @@ export class ResponseCache {
   }
 
   /** Store a raw response under `key`; no-op when off or degraded. */
-  set(key: string, entry: CacheEntry): void {
-    if (this.disabled || !this.db) return;
+  async set(key: string, entry: CacheEntry): Promise<void> {
+    if (!(await this.ensureReady()) || !this.client) return;
     try {
-      this.db
-        .prepare(
-          `INSERT INTO api_cache(key, provider, request, response, status, created_at)
+      await this.client.execute({
+        sql: `INSERT INTO api_cache(key, provider, request, response, status, created_at)
            VALUES (?, ?, ?, ?, ?, ?)
            ON CONFLICT(key) DO UPDATE SET
              provider = excluded.provider,
@@ -146,8 +169,8 @@ export class ResponseCache {
              response = excluded.response,
              status = excluded.status,
              created_at = excluded.created_at`,
-        )
-        .run(key, entry.provider, entry.request, entry.response, entry.status, Date.now());
+        args: [key, entry.provider, entry.request, entry.response, entry.status, Date.now()],
+      });
     } catch {
       // A write error must never propagate to a caller — silently skip caching.
     }

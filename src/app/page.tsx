@@ -1,29 +1,10 @@
-import { readFileSync } from "node:fs";
 import { getDb } from "@/db/client";
-import { createPersonRepo } from "@/db/people-repository";
-import { createCompanyRepo } from "@/db/repository";
-import { createTalkRepo } from "@/db/talk-repository";
 import type { Company } from "@/db/schema";
-import { loadGoalProfile } from "@/plan/profile";
-import {
-  extractBackground,
-  getObjective,
-  rankPeople,
-  OBJECTIVES,
-  type PeopleGraph,
-} from "@/plan/who-to-meet";
+import { planWhoToMeet, OBJECTIVES } from "@/plan";
 import Avatar from "./_components/Avatar";
 
 // Read the graph + profile at request time so a re-enrich shows up on refresh.
 export const dynamic = "force-dynamic";
-
-function readResume(): string | undefined {
-  try {
-    return readFileSync("profile/resume.md", "utf8");
-  } catch {
-    return undefined;
-  }
-}
 
 function companyMeta(c: Company | undefined): string[] {
   if (!c) return [];
@@ -43,49 +24,14 @@ export default async function HomePage({
   const speakingOnly = sp.speaking === "1";
   const savedOnly = sp.saved === "1";
 
-  const db = getDb();
-  const people = createPersonRepo(db);
-  const companies = createCompanyRepo(db);
-  const talks = createTalkRepo(db);
-
-  const allPeople = people.list();
-  const personById = new Map(allPeople.map((p) => [p.id, p]));
-  // People saved to the who-to-meet list (outreach_status === "targeted").
-  const savedIds = new Set(
-    allPeople.filter((p) => p.outreachStatus === "targeted").map((p) => p.id),
-  );
-  const byId = new Map(companies.list().map((c) => [c.id, c]));
-  const graph: PeopleGraph = {
-    people: allPeople,
-    companyById: (id) => (id == null ? undefined : byId.get(id)),
-    talksBySpeaker: (id) => talks.bySpeaker(id),
-  };
-
-  const vset = new Set<string>();
-  for (const c of byId.values()) {
-    try {
-      (JSON.parse(c.verticals ?? "[]") as string[]).forEach((v) => vset.add(v));
-    } catch {
-      /* ignore */
-    }
-  }
-  const verticals = [...vset].sort();
-
-  const objective = getObjective(intent);
-  const rankedAll = rankPeople(
-    {
-      graph,
-      profile: loadGoalProfile(),
-      background: extractBackground(readResume()),
-      now: new Date(),
-      objective,
-    },
-    // When showing saved-only, rank deep enough that every saved person appears.
-    { limit: savedOnly ? 2000 : 30, vertical, speakingOnly },
-  );
-  const ranked = savedOnly
-    ? rankedAll.filter((p) => savedIds.has(p.personId))
-    : rankedAll;
+  const {
+    people: ranked,
+    companies: byId,
+    savedIds,
+    verticals,
+    totalPeople,
+    objective,
+  } = await planWhoToMeet(getDb(), { intent, vertical, speakingOnly, savedOnly });
 
   return (
     <main className="wtm">
@@ -94,7 +40,7 @@ export default async function HomePage({
       <header className="wtm-head">
         <h1>Who to meet</h1>
         <p className="wtm-tagline">
-          {allPeople.length} people across {verticals.length} verticals — ranked for{" "}
+          {totalPeople} people across {verticals.length} verticals — ranked for{" "}
           <strong>{objective.label}</strong>
           {vertical ? (
             <>
@@ -146,10 +92,9 @@ export default async function HomePage({
           {ranked.map((p) => {
             const company = p.companyId != null ? byId.get(p.companyId) : undefined;
             const meta = companyMeta(company);
-            const person = personById.get(p.personId);
             return (
               <li key={p.personId} className="wtm-card">
-                <Avatar name={p.name} src={person?.photoUrl ?? null} size={48} />
+                <Avatar name={p.name} src={p.photoUrl} size={48} />
 
                 <div className="wtm-body">
                   <div className="wtm-line1">

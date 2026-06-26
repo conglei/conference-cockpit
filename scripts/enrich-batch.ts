@@ -14,7 +14,7 @@
  * in .env.local (defaults to fake). Missing keys degrade gracefully.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createProvider, SearchApiProvider } from "../src/providers";
@@ -26,15 +26,15 @@ loadEnvFile();
 
 async function main() {
   const slugs = process.argv.slice(2);
-  const db = createDb(DB_URL);
+  const db = createDb();
   const companies = createCompanyRepo(db);
   const people = createPersonRepo(db);
 
   const targets = slugs.length
-    ? slugs
-        .map((s) => companies.getBySlug(s))
-        .filter((c): c is NonNullable<typeof c> => Boolean(c))
-    : companies.list({ status: "new" });
+    ? (await Promise.all(slugs.map((s) => companies.getBySlug(s)))).filter(
+        (c): c is NonNullable<typeof c> => Boolean(c),
+      )
+    : await companies.list({ status: "new" });
 
   if (slugs.length && targets.length === 0) {
     console.error(`No company found for slug(s): ${slugs.join(", ")}.`);

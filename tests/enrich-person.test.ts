@@ -77,9 +77,9 @@ function fakeProvider(profile: Profile | (() => never)): EnrichmentProvider {
 
 describe("enrichPerson", () => {
   it("persists the deep profile onto the person row", async () => {
-    const db = createTestDb();
+    const db = await createTestDb();
     const people = createPersonRepo(db);
-    const p = people.create({
+    const p = await people.create({
       slug: "cl",
       name: "Christopher Lovejoy",
       relationship: "network_contact",
@@ -88,26 +88,26 @@ describe("enrichPerson", () => {
 
     const res = await enrichPerson({ people, provider: fakeProvider(LOVEJOY) }, p.id);
     expect(res.notes).toEqual([]);
-    const row = people.get(p.id)!;
+    const row = (await people.get(p.id))!;
     expect(row.currentCompany).toBe("Anthropic");
     expect(JSON.parse(row.workHistory!)[1].company).toBe("Anterior");
     expect(row.profileEnrichedAt).toBeTruthy();
   });
 
   it("skips a person with no linkedin_url (note, no throw)", async () => {
-    const db = createTestDb();
+    const db = await createTestDb();
     const people = createPersonRepo(db);
-    const p = people.create({ slug: "n", name: "No URL", relationship: "network_contact" });
+    const p = await people.create({ slug: "n", name: "No URL", relationship: "network_contact" });
 
     const res = await enrichPerson({ people, provider: fakeProvider(LOVEJOY) }, p.id);
     expect(res.notes[0]).toMatch(/no linkedin_url/);
-    expect(people.get(p.id)!.profileEnrichedAt).toBeNull();
+    expect((await people.get(p.id))!.profileEnrichedAt).toBeNull();
   });
 
   it("captures a provider error as a note rather than throwing", async () => {
-    const db = createTestDb();
+    const db = await createTestDb();
     const people = createPersonRepo(db);
-    const p = people.create({
+    const p = await people.create({
       slug: "e",
       name: "Errs",
       relationship: "network_contact",
@@ -119,6 +119,6 @@ describe("enrichPerson", () => {
     });
     const res = await enrichPerson({ people, provider }, p.id);
     expect(res.notes[0]).toMatch(/boom/);
-    expect(people.get(p.id)!.profileEnrichedAt).toBeNull();
+    expect((await people.get(p.id))!.profileEnrichedAt).toBeNull();
   });
 });

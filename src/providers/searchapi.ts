@@ -72,7 +72,7 @@ export class SearchApiProvider implements EnrichmentProvider {
     const keyUrl = new URL(BASE_URL);
     for (const [k, v] of Object.entries(params)) keyUrl.searchParams.set(k, v);
     const ck = cacheKey(this.name, "GET", keyUrl.toString());
-    const hit = this.cache.get(ck);
+    const hit = await this.cache.get(ck);
     if (hit) return JSON.parse(hit.response) as Record<string, unknown>;
 
     let res: Response;
@@ -92,7 +92,7 @@ export class SearchApiProvider implements EnrichmentProvider {
     }
     // MISS on a 2xx: store the raw text, bill the call, return the parsed JSON.
     const text = await readBody(res);
-    this.cache.set(ck, {
+    await this.cache.set(ck, {
       provider: this.name,
       request: ck,
       response: text,

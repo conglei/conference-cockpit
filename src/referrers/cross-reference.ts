@@ -56,7 +56,7 @@ export async function crossReferenceCompany(
   });
 
   // Index the user's 1st-degree contacts for O(1) lookup by both identities.
-  const connections = personRepo.listConnections();
+  const connections = await personRepo.listConnections();
   const byUrl = new Map<string, Person>();
   const byName = new Map<string, Person>();
   for (const c of connections) {
@@ -73,7 +73,7 @@ export async function crossReferenceCompany(
     if (!match || seen.has(match.id)) continue;
     seen.add(match.id);
 
-    const updated = personRepo.update(match.id, {
+    const updated = await personRepo.update(match.id, {
       companyId: company.id,
       canRefer: true,
       // A 1st-degree contact who works at the target is a 1st-degree path in.

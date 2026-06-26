@@ -6,18 +6,18 @@ import { createPersonRepo } from "../src/db/people-repository";
 import { createTalkRepo } from "../src/db/talk-repository";
 import { ingestTalks, type AgendaSpeaker } from "../src/talks/ingest";
 
-function seedPeople(db: DB) {
+async function seedPeople(db: DB) {
   const companies = createCompanyRepo(db);
   const people = createPersonRepo(db);
-  const yutori = companies.create({ slug: "yutori", name: "Yutori", status: "interesting" });
-  const dhruv = people.create({
+  const yutori = await companies.create({ slug: "yutori", name: "Yutori", status: "interesting" });
+  const dhruv = await people.create({
     slug: "dhruv-batra",
     name: "Dhruv Batra",
     companyId: yutori.id,
     relationship: "network_contact",
     linkedinUrl: "https://www.linkedin.com/in/dhruvbatra",
   });
-  const noLi = people.create({
+  const noLi = await people.create({
     slug: "sara-hooker",
     name: "Sara Hooker",
     relationship: "network_contact",
@@ -52,10 +52,10 @@ const AGENDA: AgendaSpeaker[] = [
 
 describe("ingestTalks", () => {
   let db: DB;
-  let seeded: ReturnType<typeof seedPeople>;
-  beforeEach(() => {
-    db = createTestDb();
-    seeded = seedPeople(db);
+  let seeded: Awaited<ReturnType<typeof seedPeople>>;
+  beforeEach(async () => {
+    db = await createTestDb();
+    seeded = await seedPeople(db);
   });
 
   function run() {
@@ -66,19 +66,19 @@ describe("ingestTalks", () => {
     );
   }
 
-  it("matches by linkedin (host/slash-insensitive) and by name; reports unmatched", () => {
-    const r = run();
+  it("matches by linkedin (host/slash-insensitive) and by name; reports unmatched", async () => {
+    const r = await run();
     expect(r.speakersMatched).toBe(3); // two Dhruv entries + Sara
     expect(r.speakersUnmatched).toBe(1);
     expect(r.unmatchedNames).toEqual(["Nobody Here"]);
   });
 
-  it("inserts talks, skips title-less sessions, denormalizes the company", () => {
-    const r = run();
+  it("inserts talks, skips title-less sessions, denormalizes the company", async () => {
+    const r = await run();
     expect(r.talksInserted).toBe(2); // Dhruv's + Sara's; ghost speaker + empty title excluded
     expect(r.sessionsSkippedNoTitle).toBe(1);
     const talks = createTalkRepo(db);
-    const dhruvTalks = talks.bySpeaker(seeded.dhruv.id);
+    const dhruvTalks = await talks.bySpeaker(seeded.dhruv.id);
     expect(dhruvTalks).toHaveLength(1);
     expect(dhruvTalks[0]).toMatchObject({
       title: "Computer-use models",
@@ -87,14 +87,14 @@ describe("ingestTalks", () => {
       companyId: seeded.yutori.id, // denormalized off the speaker
     });
     // Speaker with no company → talk.companyId null, but still ingested.
-    expect(talks.bySpeaker(seeded.noLi.id)[0].companyId).toBeNull();
+    expect((await talks.bySpeaker(seeded.noLi.id))[0].companyId).toBeNull();
   });
 
-  it("is idempotent — re-running ingests nothing new", () => {
-    run();
-    const second = run();
+  it("is idempotent — re-running ingests nothing new", async () => {
+    await run();
+    const second = await run();
     expect(second.talksInserted).toBe(0);
     expect(second.talksDuplicate).toBe(2);
-    expect(createTalkRepo(db).count()).toBe(2);
+    expect(await createTalkRepo(db).count()).toBe(2);
   });
 });

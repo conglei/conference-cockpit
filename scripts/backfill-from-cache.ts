@@ -14,7 +14,7 @@
  * is required.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { ApolloProvider } from "../src/providers/apollo";
 import { getResponseCache } from "../src/providers/cache";
@@ -40,12 +40,12 @@ async function main() {
     args.splice(concFlag, 2);
   }
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const companies = createCompanyRepo(db);
   const cache = getResponseCache();
 
   // Only companies we can key Apollo by (domain is Apollo's natural key).
-  const targets = companies.list().filter((c) => c.domain && c.domain.length > 0);
+  const targets = (await companies.list()).filter((c) => c.domain && c.domain.length > 0);
 
   // Per-company Apollo provider: real cache, throwing fetch, dummy key (the key
   // check passes but cache hits short-circuit before any fetch).

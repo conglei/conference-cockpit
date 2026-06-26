@@ -12,7 +12,7 @@ export type TalkInput = Omit<NewTalk, "id" | "createdAt" | "updatedAt">;
 export function createTalkRepo(db: DB) {
   return {
     /** Insert a talk, ignoring re-ingests that collide on the dedupe index. */
-    createIgnore(input: TalkInput): Talk | undefined {
+    async createIgnore(input: TalkInput): Promise<Talk | undefined> {
       const ts = Date.now();
       return db
         .insert(talks)
@@ -22,20 +22,20 @@ export function createTalkRepo(db: DB) {
         .get();
     },
 
-    list(): Talk[] {
+    async list(): Promise<Talk[]> {
       return db.select().from(talks).all();
     },
 
-    bySpeaker(speakerId: number): Talk[] {
+    async bySpeaker(speakerId: number): Promise<Talk[]> {
       return db.select().from(talks).where(eq(talks.speakerId, speakerId)).all();
     },
 
-    byCompany(companyId: number): Talk[] {
+    async byCompany(companyId: number): Promise<Talk[]> {
       return db.select().from(talks).where(eq(talks.companyId, companyId)).all();
     },
 
-    count(): number {
-      return db.select().from(talks).all().length;
+    async count(): Promise<number> {
+      return (await db.select().from(talks).all()).length;
     },
   };
 }

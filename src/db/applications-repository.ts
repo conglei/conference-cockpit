@@ -45,7 +45,7 @@ export type InterestingNotContacted = {
  */
 export function createApplicationRepo(db: DB) {
   return {
-    create(input: ApplicationInput): Application {
+    async create(input: ApplicationInput): Promise<Application> {
       const ts = Date.now();
       return db
         .insert(applications)
@@ -54,7 +54,7 @@ export function createApplicationRepo(db: DB) {
         .get();
     },
 
-    get(id: number): Application | undefined {
+    async get(id: number): Promise<Application | undefined> {
       return db
         .select()
         .from(applications)
@@ -62,7 +62,7 @@ export function createApplicationRepo(db: DB) {
         .get();
     },
 
-    list(opts?: { status?: ApplicationStatus }): Application[] {
+    async list(opts?: { status?: ApplicationStatus }): Promise<Application[]> {
       if (opts?.status) {
         return db
           .select()
@@ -73,7 +73,7 @@ export function createApplicationRepo(db: DB) {
       return db.select().from(applications).all();
     },
 
-    update(id: number, patch: ApplicationPatch): Application | undefined {
+    async update(id: number, patch: ApplicationPatch): Promise<Application | undefined> {
       return db
         .update(applications)
         .set({ ...patch, updatedAt: Date.now() })
@@ -88,12 +88,12 @@ export function createApplicationRepo(db: DB) {
      * lives in the `track` skill; this is the deterministic primitive it calls.
      * Sets `applied_at` the first time the application reaches `applied`.
      */
-    advance(
+    async advance(
       id: number,
       to: ApplicationStatus,
       next?: { nextAction?: string | null; nextActionDate?: string | null },
-    ): Application | undefined {
-      const current = this.get(id);
+    ): Promise<Application | undefined> {
+      const current = await this.get(id);
       if (!current) return undefined;
 
       const patch: ApplicationPatch = { status: to };
@@ -108,10 +108,10 @@ export function createApplicationRepo(db: DB) {
     },
 
     /** Full pipeline view: applications joined to role + company + contact. */
-    listWithContext(opts?: {
+    async listWithContext(opts?: {
       status?: ApplicationStatus;
-    }): ApplicationWithContext[] {
-      const rows = db
+    }): Promise<ApplicationWithContext[]> {
+      const rows = await db
         .select({
           application: applications,
           role: roles,
@@ -145,21 +145,22 @@ export function createApplicationRepo(db: DB) {
      *
      * Returns each such company together with the founders/referrers to reach.
      */
-    interestingNotContacted(opts?: {
+    async interestingNotContacted(opts?: {
       statuses?: Company["status"][];
-    }): InterestingNotContacted[] {
+    }): Promise<InterestingNotContacted[]> {
       const interesting: Company["status"][] = opts?.statuses ?? [
         "interesting",
         "watching",
         "pursuing",
       ];
 
-      // Companies that already have an application — exclude these.
+      // Companies that already have an application — exclude these. This is a
+      // subquery (a query builder, not a result), so it is NOT awaited here.
       const engagedCompanyIds = db
         .select({ id: applications.companyId })
         .from(applications);
 
-      const candidates = db
+      const candidates = await db
         .select()
         .from(companies)
         .where(
@@ -173,7 +174,7 @@ export function createApplicationRepo(db: DB) {
       const result: InterestingNotContacted[] = [];
       for (const company of candidates) {
         // Founders/referrers on file who have NOT been contacted yet.
-        const contacts = db
+        const contacts = await db
           .select()
           .from(people)
           .where(

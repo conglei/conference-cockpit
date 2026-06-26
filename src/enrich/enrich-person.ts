@@ -33,7 +33,7 @@ export async function enrichPerson(
   const { people, provider } = deps;
   const notes: string[] = [];
 
-  const person = people.get(personId);
+  const person = await people.get(personId);
   if (!person) throw new Error(`enrichPerson: no person with id ${personId}`);
 
   const costBefore = opts.meter?.totalUsd() ?? 0;
@@ -54,7 +54,7 @@ export async function enrichPerson(
 
   const patch = profileToPatch(profile);
   if (Object.keys(patch).length > 0) {
-    const updated = people.update(personId, patch);
+    const updated = await people.update(personId, patch);
     if (updated) Object.assign(person, updated);
   }
 

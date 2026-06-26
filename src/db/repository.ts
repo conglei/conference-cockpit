@@ -22,7 +22,7 @@ export type CompanyPatch = Partial<Omit<NewCompany, "id" | "createdAt" | "update
  */
 export function createCompanyRepo(db: DB) {
   return {
-    create(input: CompanyInput): Company {
+    async create(input: CompanyInput): Promise<Company> {
       const ts = Date.now();
       return db
         .insert(companies)
@@ -31,18 +31,18 @@ export function createCompanyRepo(db: DB) {
         .get();
     },
 
-    list(opts?: { status?: CompanyStatus }): Company[] {
+    async list(opts?: { status?: CompanyStatus }): Promise<Company[]> {
       if (opts?.status) {
         return db.select().from(companies).where(eq(companies.status, opts.status)).all();
       }
       return db.select().from(companies).all();
     },
 
-    get(id: number): Company | undefined {
+    async get(id: number): Promise<Company | undefined> {
       return db.select().from(companies).where(eq(companies.id, id)).get();
     },
 
-    getBySlug(slug: string): Company | undefined {
+    async getBySlug(slug: string): Promise<Company | undefined> {
       return db.select().from(companies).where(eq(companies.slug, slug)).get();
     },
 
@@ -51,10 +51,10 @@ export function createCompanyRepo(db: DB) {
      * the dedupe rule from ADR-0001. Used by the resolver to avoid colliding
      * with an already-resolved row. Null/undefined keys never match.
      */
-    findByIdentity(identity: {
+    async findByIdentity(identity: {
       domain?: string | null;
       linkedinUrl?: string | null;
-    }): Company | undefined {
+    }): Promise<Company | undefined> {
       const conds = [];
       if (identity.domain) conds.push(eq(companies.domain, identity.domain));
       if (identity.linkedinUrl) conds.push(eq(companies.linkedinUrl, identity.linkedinUrl));
@@ -66,7 +66,7 @@ export function createCompanyRepo(db: DB) {
         .get();
     },
 
-    update(id: number, patch: CompanyPatch): Company | undefined {
+    async update(id: number, patch: CompanyPatch): Promise<Company | undefined> {
       return db
         .update(companies)
         .set({ ...patch, updatedAt: Date.now() })
@@ -80,8 +80,8 @@ export function createCompanyRepo(db: DB) {
      * resolved, turns out to share a canonical identity with an existing
      * company (a cross-shape / re-import duplicate) — keeping import idempotent.
      */
-    delete(id: number): void {
-      db.delete(companies).where(eq(companies.id, id)).run();
+    async delete(id: number): Promise<void> {
+      await db.delete(companies).where(eq(companies.id, id)).run();
     },
 
     /**
@@ -91,8 +91,8 @@ export function createCompanyRepo(db: DB) {
      * (ADR-0001). A no-op (and idempotent) when the company is already at or
      * past `target`, so we never regress a `watching`/`pursuing` company.
      */
-    promoteToAtLeast(id: number, target: CompanyStatus): Company | undefined {
-      const company = this.get(id);
+    async promoteToAtLeast(id: number, target: CompanyStatus): Promise<Company | undefined> {
+      const company = await this.get(id);
       if (!company) return undefined;
       const current = COMPANY_STATUS.indexOf(company.status);
       const goal = COMPANY_STATUS.indexOf(target);
@@ -119,7 +119,7 @@ export type RolePatch = Partial<Omit<NewRole, "id" | "createdAt" | "updatedAt">>
  */
 export function createRoleRepo(db: DB) {
   return {
-    create(input: RoleInput): Role {
+    async create(input: RoleInput): Promise<Role> {
       const ts = Date.now();
       return db
         .insert(roles)
@@ -128,7 +128,7 @@ export function createRoleRepo(db: DB) {
         .get();
     },
 
-    list(opts?: { status?: RoleStatus; companyId?: number }): Role[] {
+    async list(opts?: { status?: RoleStatus; companyId?: number }): Promise<Role[]> {
       const conds = [];
       if (opts?.status) conds.push(eq(roles.status, opts.status));
       if (opts?.companyId !== undefined) conds.push(eq(roles.companyId, opts.companyId));
@@ -138,7 +138,7 @@ export function createRoleRepo(db: DB) {
       return q.orderBy(desc(roles.createdAt)).all();
     },
 
-    get(id: number): Role | undefined {
+    async get(id: number): Promise<Role | undefined> {
       return db.select().from(roles).where(eq(roles.id, id)).get();
     },
 
@@ -147,12 +147,12 @@ export function createRoleRepo(db: DB) {
      * (roles.external_id, partial-unique where not null). A null/empty id never
      * matches, so id-less roles are never treated as duplicates.
      */
-    findByExternalId(externalId: string | null | undefined): Role | undefined {
+    async findByExternalId(externalId: string | null | undefined): Promise<Role | undefined> {
       if (!externalId) return undefined;
       return db.select().from(roles).where(eq(roles.externalId, externalId)).get();
     },
 
-    update(id: number, patch: RolePatch): Role | undefined {
+    async update(id: number, patch: RolePatch): Promise<Role | undefined> {
       return db
         .update(roles)
         .set({ ...patch, updatedAt: Date.now() })
@@ -161,8 +161,8 @@ export function createRoleRepo(db: DB) {
         .get();
     },
 
-    delete(id: number): void {
-      db.delete(roles).where(eq(roles.id, id)).run();
+    async delete(id: number): Promise<void> {
+      await db.delete(roles).where(eq(roles.id, id)).run();
     },
   };
 }

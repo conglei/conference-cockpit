@@ -1,4 +1,5 @@
 import { getDb } from "@/db/client";
+import { cleanText } from "@/db/columns";
 import { createCompanyRepo, createRoleRepo } from "@/db/repository";
 import { roleProvenance, formatChip, isThin } from "@/provenance";
 import RolesExplorer, { type RoleRow } from "../_components/RolesTable";
@@ -9,23 +10,6 @@ export const dynamic = "force-dynamic";
 
 function isSortKey(v: string | undefined): v is RoleSortKey {
   return !!v && (ROLE_SORT_KEYS as readonly string[]).includes(v);
-}
-
-/** Some role descriptions arrive as (entity-encoded) HTML — decode + strip to prose. */
-function cleanDescription(s: string | null): string | null {
-  if (!s) return null;
-  const t = s
-    .replace(/&amp;/g, "&") // collapse one level first (descriptions are double-encoded)
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&") // any remaining from &amp;amp;
-    .replace(/<[^>]+>/g, " ") // strip tags (now decoded)
-    .replace(/\s+/g, " ")
-    .trim();
-  return t || null;
 }
 
 export default async function RolesPage({
@@ -45,12 +29,15 @@ export default async function RolesPage({
   const now = new Date();
 
   // Fetch the FULL dataset (all statuses); filtering happens client-side.
-  const roles = roleRepo.list();
+  const roles = await roleRepo.list();
   // Resolve each role's company once, then flatten name/slug/score/status onto
   // each row so the client can render + rank by company fit without a DB call.
   const companyById = new Map(
-    [...new Set(roles.map((r) => r.companyId))]
-      .map((id) => companyRepo.get(id))
+    (
+      await Promise.all(
+        [...new Set(roles.map((r) => r.companyId))].map((id) => companyRepo.get(id)),
+      )
+    )
       .filter((c): c is NonNullable<typeof c> => Boolean(c))
       .map((c) => [c.id, c] as const),
   );
@@ -65,7 +52,7 @@ export default async function RolesPage({
       location: r.location,
       workType: r.workType,
       salary: r.salary,
-      description: cleanDescription(r.description),
+      description: cleanText(r.description),
       postedDate: r.postedDate,
       status: r.status,
       source: r.source,

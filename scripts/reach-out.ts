@@ -22,7 +22,7 @@
  *     --next "await intro" --next-date 2026-06-30
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createApplicationRepo } from "../src/db/applications-repository";
 import { logOutreach, LOGGABLE_OUTREACH_STATUSES } from "../src/outreach";
@@ -51,11 +51,11 @@ function usage(): never {
   process.exit(1);
 }
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   if (args[0] !== "log") usage();
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const people = createPersonRepo(db);
   const applications = createApplicationRepo(db);
 
@@ -74,8 +74,8 @@ function main() {
 
   // Resolve person by numeric id or slug.
   const person = /^\d+$/.test(personRef)
-    ? people.get(Number(personRef))
-    : people.getBySlug(personRef);
+    ? await people.get(Number(personRef))
+    : await people.getBySlug(personRef);
   if (!person) {
     console.error(`No person matching "${personRef}".`);
     process.exit(1);
@@ -84,7 +84,7 @@ function main() {
   const applicationRaw = flag(args, "application");
   const applicationId = applicationRaw ? Number(applicationRaw) : undefined;
 
-  const result = logOutreach(
+  const result = await logOutreach(
     { people, applications },
     {
       personId: person.id,
@@ -119,4 +119,4 @@ function main() {
   }
 }
 
-main();
+await main();

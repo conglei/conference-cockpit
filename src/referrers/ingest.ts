@@ -30,31 +30,31 @@ export interface IngestResult {
 }
 
 /** Ingest all contacts a source yields. */
-export function ingestConnections(
+export async function ingestConnections(
   repo: PersonRepo,
   source: ConnectionSource,
-): IngestResult {
+): Promise<IngestResult> {
   const outcomes: IngestOutcome[] = [];
   for (const conn of source.read()) {
-    outcomes.push(ingestOne(repo, conn));
+    outcomes.push(await ingestOne(repo, conn));
   }
   return tally(outcomes);
 }
 
 /** Ingest a single contact (exported for focused tests). */
-export function ingestOne(repo: PersonRepo, conn: Connection): IngestOutcome {
+export async function ingestOne(repo: PersonRepo, conn: Connection): Promise<IngestOutcome> {
   const name = conn.name.trim();
   if (!name) return { kind: "skipped", reason: "contact has no name" };
 
   // Dedupe identity: LinkedIn URL first (canonical), else a stable name slug.
   const existing = conn.linkedinUrl
-    ? repo.getByLinkedinUrl(conn.linkedinUrl)
-    : repo.getBySlug(slugify(name));
+    ? await repo.getByLinkedinUrl(conn.linkedinUrl)
+    : await repo.getBySlug(slugify(name));
 
   if (existing) {
     // Promote to a 1st-degree network contact and backfill what the export
     // tells us, without clobbering a stronger existing relationship's fields.
-    const person = repo.update(existing.id, {
+    const person = await repo.update(existing.id, {
       relationship: "network_contact",
       connectionDegree: 1,
       linkedinUrl: existing.linkedinUrl ?? conn.linkedinUrl ?? null,
@@ -63,8 +63,8 @@ export function ingestOne(repo: PersonRepo, conn: Connection): IngestOutcome {
     return { kind: "updated", person: person ?? existing };
   }
 
-  const person = repo.create({
-    slug: uniqueSlug(repo, name),
+  const person = await repo.create({
+    slug: await uniqueSlug(repo, name),
     name,
     relationship: "network_contact",
     connectionDegree: 1,
@@ -87,11 +87,11 @@ function tally(outcomes: IngestOutcome[]): IngestResult {
 }
 
 /** kebab-case slug, made unique against existing rows (ADR-0001 convention). */
-function uniqueSlug(repo: PersonRepo, name: string): string {
+async function uniqueSlug(repo: PersonRepo, name: string): Promise<string> {
   const base = slugify(name) || "contact";
   let candidate = base;
   let n = 2;
-  while (repo.getBySlug(candidate)) {
+  while (await repo.getBySlug(candidate)) {
     candidate = `${base}-${n}`;
     n++;
   }

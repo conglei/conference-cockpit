@@ -47,7 +47,7 @@ export async function resolveCompany(
   provider: EnrichmentProvider,
   opts: ResolveOptions = {},
 ): Promise<ResolveResult> {
-  const company = repo.get(companyId);
+  const company = await repo.get(companyId);
   if (!company) {
     throw new Error(`resolveCompany: no company with id ${companyId}`);
   }
@@ -99,7 +99,7 @@ export async function resolveCompany(
   // here unresolved, the fields stay null for a human/Chrome pass.
 
   // Guard the canonical-identity uniqueness before writing.
-  const safe = dropConflicting(repo, companyId, { domain, linkedinUrl }, notes);
+  const safe = await dropConflicting(repo, companyId, { domain, linkedinUrl }, notes);
 
   const changed =
     (safe.domain && safe.domain !== company.domain) ||
@@ -109,7 +109,7 @@ export async function resolveCompany(
     return { company, resolved: false, via, notes };
   }
 
-  const updated = repo.update(companyId, {
+  const updated = await repo.update(companyId, {
     domain: safe.domain ?? company.domain,
     linkedinUrl: safe.linkedinUrl ?? company.linkedinUrl,
   });
@@ -139,15 +139,15 @@ async function tryResolve(
  * (the partial-unique identity would reject the update). Drop the conflicting
  * field and leave a note instead of throwing.
  */
-function dropConflicting(
+async function dropConflicting(
   repo: CompanyRepo,
   selfId: number,
   candidate: { domain?: string; linkedinUrl?: string },
   notes: string[],
-): { domain?: string; linkedinUrl?: string } {
+): Promise<{ domain?: string; linkedinUrl?: string }> {
   const out = { ...candidate };
   if (out.domain) {
-    const other = repo.findByIdentity({ domain: out.domain });
+    const other = await repo.findByIdentity({ domain: out.domain });
     if (other && other.id !== selfId) {
       notes.push(
         `domain "${out.domain}" already belongs to company #${other.id} (${other.name}); not writing it.`,
@@ -156,7 +156,7 @@ function dropConflicting(
     }
   }
   if (out.linkedinUrl) {
-    const other = repo.findByIdentity({ linkedinUrl: out.linkedinUrl });
+    const other = await repo.findByIdentity({ linkedinUrl: out.linkedinUrl });
     if (other && other.id !== selfId) {
       notes.push(
         `linkedin "${out.linkedinUrl}" already belongs to company #${other.id} (${other.name}); not writing it.`,

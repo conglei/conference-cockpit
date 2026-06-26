@@ -17,19 +17,19 @@ export type TrackResult = {
  *
  * Throws if the application is missing or the transition is illegal.
  */
-export function track(
+export async function track(
   repo: ApplicationRepo,
   id: number,
   to: ApplicationStatus,
   next?: { nextAction?: string | null; nextActionDate?: string | null },
-): TrackResult {
-  const current = repo.get(id);
+): Promise<TrackResult> {
+  const current = await repo.get(id);
   if (!current) throw new Error(`No application with id ${id}.`);
 
   const from = current.status;
   assertTransition(from, to);
 
-  const updated = repo.advance(id, to, next);
+  const updated = await repo.advance(id, to, next);
   if (!updated) throw new Error(`Failed to advance application ${id}.`);
   return { application: updated, from, to };
 }
@@ -39,14 +39,14 @@ export function track(
  * (e.g. "follow up Friday" while still `screening`). Persists through the data
  * layer; the *what/when* is the skill's call.
  */
-export function setNextAction(
+export async function setNextAction(
   repo: ApplicationRepo,
   id: number,
   next: { nextAction?: string | null; nextActionDate?: string | null },
-): Application {
-  const current = repo.get(id);
+): Promise<Application> {
+  const current = await repo.get(id);
   if (!current) throw new Error(`No application with id ${id}.`);
-  const updated = repo.update(id, next);
+  const updated = await repo.update(id, next);
   if (!updated) throw new Error(`Failed to update application ${id}.`);
   return updated;
 }

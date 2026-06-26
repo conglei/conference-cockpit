@@ -12,7 +12,7 @@
  *   …append --json for machine output.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createReadOnlyDb, DB_URL } from "../src/db/client";
+import { createReadOnlyDb } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createCompanyRepo, createRoleRepo } from "../src/db/repository";
 import { createTalkRepo } from "../src/db/talk-repository";
@@ -47,9 +47,9 @@ function out(result: unknown): void {
   console.log(JSON.stringify(result, null, 2));
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const [cmd, sub, id] = argv.filter((a) => !a.startsWith("--"));
-  const db = createReadOnlyDb(DB_URL); // read-only: this CLI cannot write.
+  const db = createReadOnlyDb(); // read-only: this CLI cannot write.
   const repos: QueryRepos = {
     people: createPersonRepo(db),
     companies: createCompanyRepo(db),
@@ -62,7 +62,7 @@ function main(): void {
   switch (cmd) {
     case "people":
       return out(
-        searchPeople(repos, {
+        await searchPeople(repos, {
           q: flag("q"),
           vertical: flag("vertical"),
           company: flag("company"),
@@ -73,7 +73,7 @@ function main(): void {
       );
     case "companies":
       return out(
-        searchCompanies(repos, {
+        await searchCompanies(repos, {
           q: flag("q"),
           vertical: flag("vertical"),
           hiring: has("hiring") ? true : undefined,
@@ -83,7 +83,7 @@ function main(): void {
       );
     case "roles":
       return out(
-        searchRoles(repos, {
+        await searchRoles(repos, {
           q: flag("q"),
           workType: flag("workType"),
           company: flag("company"),
@@ -92,16 +92,16 @@ function main(): void {
         }),
       );
     case "verticals":
-      return out(listVerticals(repos));
+      return out(await listVerticals(repos));
     case "get": {
       const key = id ?? "";
       const result =
         sub === "person"
-          ? getPerson(repos, Number.isFinite(Number(key)) ? Number(key) : key)
+          ? await getPerson(repos, Number.isFinite(Number(key)) ? Number(key) : key)
           : sub === "company"
-            ? getCompany(repos, key)
+            ? await getCompany(repos, key)
             : sub === "role"
-              ? getRole(repos, Number(key))
+              ? await getRole(repos, Number(key))
               : undefined;
       if (result === undefined) {
         console.error("Usage: pnpm query get <person|company|role> <id|slug>");
@@ -123,4 +123,4 @@ function main(): void {
   }
 }
 
-main();
+await main();

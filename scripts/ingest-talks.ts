@@ -11,21 +11,21 @@
  */
 import { readFileSync } from "node:fs";
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createTalkRepo } from "../src/db/talk-repository";
 import { ingestTalks, type AgendaSpeaker } from "../src/talks/ingest";
 
 loadEnvFile();
 
-function main() {
+async function main() {
   const path = process.argv[2] ?? "seed/aie-wf-2026.json";
   const data = JSON.parse(readFileSync(path, "utf8")) as {
     conference?: string;
     speakers: AgendaSpeaker[];
   };
-  const db = createDb(DB_URL);
-  const res = ingestTalks(
+  const db = createDb();
+  const res = await ingestTalks(
     { people: createPersonRepo(db), talks: createTalkRepo(db) },
     data.speakers,
     { sourceDetail: data.conference ?? path },
@@ -47,4 +47,4 @@ function main() {
   }
 }
 
-main();
+await main();

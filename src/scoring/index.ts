@@ -43,6 +43,30 @@ export {
 } from "./score-run";
 
 export {
+  applyScores,
+  buildScoreResult,
+  type AppliedScoreInput,
+  type ApplyScoresResult,
+} from "./apply";
+
+export {
+  // Generic, taste-neutral fact extractors (reusable by any persona):
+  pastEmployers,
+  educationSummary,
+  isFounderTitle,
+  // Career Mover pedigree heuristic (ONE persona's taste; used by who-to-meet):
+  founderPedigree,
+  type Pedigree,
+} from "./pedigree";
+
+export {
+  buildScoringContext,
+  type ScoringContextCompany,
+  type ScoringContextOptions,
+  type ScoringContextRepos,
+} from "./scoring-context";
+
+export {
   SCORE_AXES,
   isScoreAxis,
   scoreValue,

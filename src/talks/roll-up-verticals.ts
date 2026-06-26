@@ -28,13 +28,13 @@ export function isVerticalTrack(track: string | null | undefined): boolean {
   return !GENERIC_TRACK.test(t);
 }
 
-export function rollUpVerticals(deps: {
+export async function rollUpVerticals(deps: {
   companies: CompanyRepo;
   talks: TalkRepo;
-}): RollUpVerticalsResult {
+}): Promise<RollUpVerticalsResult> {
   // Group distinct vertical tracks per company.
   const byCompany = new Map<number, Set<string>>();
-  for (const talk of deps.talks.list()) {
+  for (const talk of await deps.talks.list()) {
     if (talk.companyId == null || !isVerticalTrack(talk.track)) continue;
     const set = byCompany.get(talk.companyId) ?? new Set<string>();
     set.add(talk.track!.trim());
@@ -46,7 +46,7 @@ export function rollUpVerticals(deps: {
   for (const [companyId, tracks] of byCompany) {
     const verticals = [...tracks].sort();
     verticals.forEach((v) => distinct.add(v));
-    deps.companies.update(companyId, { verticals: JSON.stringify(verticals) });
+    await deps.companies.update(companyId, { verticals: JSON.stringify(verticals) });
     updated++;
   }
 

@@ -6,12 +6,12 @@ import type { ScoreResult } from "../src/scoring";
 
 describe("persistVerdict — LLM deep-review persistence (scored_by 'llm')", () => {
   let repo: CompanyRepo;
-  beforeEach(() => {
-    repo = createCompanyRepo(createTestDb());
+  beforeEach(async () => {
+    repo = createCompanyRepo(await createTestDb());
   });
 
-  it("writes sub-scores, scoredBy 'llm', serialized verdict, and recomputed overall", () => {
-    const c = repo.create({ slug: "deep", name: "Deep Co" });
+  it("writes sub-scores, scoredBy 'llm', serialized verdict, and recomputed overall", async () => {
+    const c = await repo.create({ slug: "deep", name: "Deep Co" });
 
     const result: ScoreResult = {
       founder_quality: 0.9,
@@ -29,10 +29,10 @@ describe("persistVerdict — LLM deep-review persistence (scored_by 'llm')", () 
       },
     };
 
-    const updated = persistVerdict(repo, c.id, result, { now: 4242 });
+    const updated = await persistVerdict(repo, c.id, result, { now: 4242 });
     expect(updated).toBeDefined();
 
-    const reread = repo.get(c.id)!;
+    const reread = (await repo.get(c.id))!;
     expect(reread.scoreScoredBy).toBe("llm");
     expect(reread.scoreFounderQuality).toBe(0.9);
     expect(reread.scoreInvestorQuality).toBe(0.8);
@@ -56,8 +56,8 @@ describe("persistVerdict — LLM deep-review persistence (scored_by 'llm')", () 
     });
   });
 
-  it("recompute honors NULL sub-scores (renormalize + co-dominant discount)", () => {
-    const c = repo.create({ slug: "thin", name: "Thin" });
+  it("recompute honors NULL sub-scores (renormalize + co-dominant discount)", async () => {
+    const c = await repo.create({ slug: "thin", name: "Thin" });
 
     // No founder data → NULL. Recomputed overall must apply the one-missing
     // co-dominant discount, not fabricate a 0 for founder_quality.
@@ -72,8 +72,8 @@ describe("persistVerdict — LLM deep-review persistence (scored_by 'llm')", () 
       scoredBy: "llm",
     };
 
-    persistVerdict(repo, c.id, result);
-    const reread = repo.get(c.id)!;
+    await persistVerdict(repo, c.id, result);
+    const reread = (await repo.get(c.id))!;
     expect(reread.scoreFounderQuality).toBeNull();
     expect(reread.scoreInvestorQuality).toBe(0.6);
     expect(reread.scoreOverall).toBe(combineOverall(result, DEFAULT_WEIGHTS));
@@ -81,8 +81,8 @@ describe("persistVerdict — LLM deep-review persistence (scored_by 'llm')", () 
     expect(reread.scoreVerdict).toBeNull(); // no verdict supplied
   });
 
-  it("respects custom weights when recomputing overall", () => {
-    const c = repo.create({ slug: "w", name: "W" });
+  it("respects custom weights when recomputing overall", async () => {
+    const c = await repo.create({ slug: "w", name: "W" });
     const result: ScoreResult = {
       founder_quality: 1,
       investor_quality: 0,
@@ -93,11 +93,11 @@ describe("persistVerdict — LLM deep-review persistence (scored_by 'llm')", () 
       rationale: "r",
     };
     const weights = { ...DEFAULT_WEIGHTS, founder_quality: 10 };
-    persistVerdict(repo, c.id, result, { weights });
-    expect(repo.get(c.id)!.scoreOverall).toBe(combineOverall(result, weights));
+    await persistVerdict(repo, c.id, result, { weights });
+    expect((await repo.get(c.id))!.scoreOverall).toBe(combineOverall(result, weights));
   });
 
-  it("returns undefined for a missing company id", () => {
+  it("returns undefined for a missing company id", async () => {
     const result: ScoreResult = {
       founder_quality: 0.5,
       investor_quality: 0.5,
@@ -107,6 +107,6 @@ describe("persistVerdict — LLM deep-review persistence (scored_by 'llm')", () 
       overall: 0.5,
       rationale: "r",
     };
-    expect(persistVerdict(repo, 9999, result)).toBeUndefined();
+    expect(await persistVerdict(repo, 9999, result)).toBeUndefined();
   });
 });

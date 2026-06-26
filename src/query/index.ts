@@ -10,6 +10,7 @@ import type { PersonRepo } from "../db/people-repository";
 import type { CompanyRepo, RoleRepo } from "../db/repository";
 import type { TalkRepo } from "../db/talk-repository";
 import type { Company, Person, Role } from "../db/schema";
+import { asList, cleanText } from "../db/columns";
 import {
   companyFundingProvenance,
   companyIdentityProvenance,
@@ -37,33 +38,6 @@ function offsetOf(cursor: number | string | undefined): number {
   const n = Number(cursor);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
-function asList(v: string | null | undefined): string[] {
-  if (!v) return [];
-  try {
-    const p = JSON.parse(v);
-    if (Array.isArray(p)) return p.map(String).filter(Boolean);
-  } catch {
-    /* not json */
-  }
-  return v.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
-}
-/** Role descriptions can be (double-)encoded HTML — decode + strip to prose. */
-function cleanText(s: string | null): string | null {
-  if (!s) return null;
-  const t = s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return t || null;
-}
-
 /** Cap + paginate; every search returns this envelope so the agent can page. */
 function page<T>(rows: T[], limit: number | undefined, cursor: number | string | undefined) {
   const off = offsetOf(cursor);
@@ -72,8 +46,8 @@ function page<T>(rows: T[], limit: number | undefined, cursor: number | string |
   return { items, total: rows.length, nextCursor: off + lim < rows.length ? off + lim : null };
 }
 
-function companyById(repos: QueryRepos) {
-  return new Map(repos.companies.list().map((c) => [c.id, c]));
+async function companyById(repos: QueryRepos) {
+  return new Map((await repos.companies.list()).map((c) => [c.id, c]));
 }
 
 // ============================ PEOPLE ============================
@@ -86,28 +60,30 @@ export interface PeopleQuery {
   cursor?: number | string;
 }
 
-export function searchPeople(repos: QueryRepos, args: PeopleQuery = {}) {
-  const byId = companyById(repos);
+export async function searchPeople(repos: QueryRepos, args: PeopleQuery = {}) {
+  const byId = await companyById(repos);
   const needle = args.q?.trim().toLowerCase();
-  const companyId = args.company ? repos.companies.getBySlug(args.company)?.id ?? -1 : undefined;
+  const companyId = args.company ? (await repos.companies.getBySlug(args.company))?.id ?? -1 : undefined;
 
-  const rows = repos.people.list().filter((p) => {
-    if (companyId !== undefined && p.companyId !== companyId) return false;
-    if (args.vertical && !asList(byId.get(p.companyId ?? -1)?.verticals).includes(args.vertical)) return false;
-    if (args.speaking != null && repos.talks.bySpeaker(p.id).length > 0 !== args.speaking) return false;
+  const all = await repos.people.list();
+  const rows: Person[] = [];
+  for (const p of all) {
+    if (companyId !== undefined && p.companyId !== companyId) continue;
+    if (args.vertical && !asList(byId.get(p.companyId ?? -1)?.verticals).includes(args.vertical)) continue;
+    if (args.speaking != null && (await repos.talks.bySpeaker(p.id)).length > 0 !== args.speaking) continue;
     if (needle) {
       const co = p.companyId != null ? byId.get(p.companyId)?.name ?? "" : "";
       const hay = `${p.name} ${p.title ?? ""} ${p.headline ?? ""} ${p.currentCompany ?? ""} ${co}`.toLowerCase();
-      if (!hay.includes(needle)) return false;
+      if (!hay.includes(needle)) continue;
     }
-    return true;
-  });
+    rows.push(p);
+  }
 
   const { items, total, nextCursor } = page(rows, args.limit, args.cursor);
-  return { total, nextCursor, people: items.map((p) => peopleCompact(p, repos)) };
+  return { total, nextCursor, people: await Promise.all(items.map((p) => peopleCompact(p, repos))) };
 }
 
-function peopleCompact(p: Person, repos: QueryRepos) {
+async function peopleCompact(p: Person, repos: QueryRepos) {
   return {
     id: p.id,
     slug: p.slug,
@@ -116,18 +92,18 @@ function peopleCompact(p: Person, repos: QueryRepos) {
     company: p.currentCompany,
     headline: p.headline,
     location: p.location,
-    speaking: repos.talks.bySpeaker(p.id).length > 0,
+    speaking: (await repos.talks.bySpeaker(p.id)).length > 0,
     saved: p.outreachStatus === "targeted",
   };
 }
 
-export function getPerson(repos: QueryRepos, idOrSlug: string | number) {
+export async function getPerson(repos: QueryRepos, idOrSlug: string | number) {
   const person =
     typeof idOrSlug === "number"
-      ? repos.people.get(idOrSlug)
-      : (repos.people.getBySlug(idOrSlug) ?? (Number.isFinite(Number(idOrSlug)) ? repos.people.get(Number(idOrSlug)) : undefined));
+      ? await repos.people.get(idOrSlug)
+      : ((await repos.people.getBySlug(idOrSlug)) ?? (Number.isFinite(Number(idOrSlug)) ? await repos.people.get(Number(idOrSlug)) : undefined));
   if (!person) return null;
-  const company = person.companyId != null ? repos.companies.get(person.companyId) : undefined;
+  const company = person.companyId != null ? await repos.companies.get(person.companyId) : undefined;
   const now = new Date();
   return {
     id: person.id,
@@ -142,7 +118,7 @@ export function getPerson(repos: QueryRepos, idOrSlug: string | number) {
     linkedinUrl: person.linkedinUrl,
     twitterUrl: person.twitterUrl,
     company: company ? { slug: company.slug, name: company.name } : null,
-    talks: repos.talks.bySpeaker(person.id).map((t) => ({
+    talks: (await repos.talks.bySpeaker(person.id)).map((t) => ({
       title: t.title, day: t.day, time: t.time, room: t.room, track: t.track,
     })),
     saved: person.outreachStatus === "targeted",
@@ -160,11 +136,11 @@ export interface CompanyQuery {
   cursor?: number | string;
 }
 
-export function searchCompanies(repos: QueryRepos, args: CompanyQuery = {}) {
+export async function searchCompanies(repos: QueryRepos, args: CompanyQuery = {}) {
   const counts = new Map<number, number>();
-  for (const r of repos.roles.list()) counts.set(r.companyId, (counts.get(r.companyId) ?? 0) + 1);
+  for (const r of await repos.roles.list()) counts.set(r.companyId, (counts.get(r.companyId) ?? 0) + 1);
   const needle = args.q?.trim().toLowerCase();
-  const rows = repos.companies.list().filter((c) => {
+  const rows = (await repos.companies.list()).filter((c) => {
     const v = asList(c.verticals);
     if (args.hiring && (counts.get(c.id) ?? 0) === 0) return false;
     if (args.vertical && !v.includes(args.vertical)) return false;
@@ -191,8 +167,8 @@ export function searchCompanies(repos: QueryRepos, args: CompanyQuery = {}) {
   };
 }
 
-export function getCompany(repos: QueryRepos, slug: string) {
-  const c = repos.companies.getBySlug(slug);
+export async function getCompany(repos: QueryRepos, slug: string) {
+  const c = await repos.companies.getBySlug(slug);
   if (!c) return null;
   const now = new Date();
   return {
@@ -215,8 +191,8 @@ export function getCompany(repos: QueryRepos, slug: string) {
       source: formatChip(companyFundingProvenance(c, now), now),
     },
     identitySource: formatChip(companyIdentityProvenance(c, now), now),
-    people: repos.people.listByCompany(c.id).map((p) => ({ slug: p.slug, name: p.name, title: p.title })),
-    openRoles: repos.roles.list({ companyId: c.id }).length,
+    people: (await repos.people.listByCompany(c.id)).map((p) => ({ slug: p.slug, name: p.name, title: p.title })),
+    openRoles: (await repos.roles.list({ companyId: c.id })).length,
   };
 }
 
@@ -229,12 +205,12 @@ export interface RoleQuery {
   cursor?: number | string;
 }
 
-export function searchRoles(repos: QueryRepos, args: RoleQuery = {}) {
-  const byId = companyById(repos);
+export async function searchRoles(repos: QueryRepos, args: RoleQuery = {}) {
+  const byId = await companyById(repos);
   const needle = args.q?.trim().toLowerCase();
-  const companyId = args.company ? repos.companies.getBySlug(args.company)?.id ?? -1 : undefined;
-  const rows = repos.roles
-    .list(companyId !== undefined ? { companyId } : undefined)
+  const companyId = args.company ? (await repos.companies.getBySlug(args.company))?.id ?? -1 : undefined;
+  const rows = (await repos.roles
+    .list(companyId !== undefined ? { companyId } : undefined))
     .filter((r) => {
       if (args.workType && r.workType !== args.workType) return false;
       if (needle) {
@@ -264,10 +240,10 @@ function roleCompact(r: Role, byId: Map<number, Company>) {
   };
 }
 
-export function getRole(repos: QueryRepos, id: number) {
-  const r = repos.roles.get(id);
+export async function getRole(repos: QueryRepos, id: number) {
+  const r = await repos.roles.get(id);
   if (!r) return null;
-  const c = repos.companies.get(r.companyId);
+  const c = await repos.companies.get(r.companyId);
   const now = new Date();
   const prov = roleProvenance(r, now);
   return {
@@ -286,9 +262,9 @@ export function getRole(repos: QueryRepos, id: number) {
 }
 
 // ============================ FACETS ============================
-export function listVerticals(repos: QueryRepos) {
+export async function listVerticals(repos: QueryRepos) {
   const counts = new Map<string, number>();
-  for (const c of repos.companies.list()) {
+  for (const c of await repos.companies.list()) {
     for (const v of asList(c.verticals)) counts.set(v, (counts.get(v) ?? 0) + 1);
   }
   return {

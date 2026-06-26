@@ -32,12 +32,12 @@ export interface IngestEmbeddingsResult {
 
 const normName = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-export function ingestEmbeddings(
+export async function ingestEmbeddings(
   deps: { people: PersonRepo; embeddings: SpeakerEmbeddingRepo },
   feed: EmbeddingsFeed,
-): IngestEmbeddingsResult {
+): Promise<IngestEmbeddingsResult> {
   const byName = new Map<string, Person>();
-  for (const p of deps.people.list()) byName.set(normName(p.name), p);
+  for (const p of await deps.people.list()) byName.set(normName(p.name), p);
 
   const res: IngestEmbeddingsResult = { ingested: 0, linkedToPerson: 0, skippedNoVector: 0 };
 
@@ -47,7 +47,7 @@ export function ingestEmbeddings(
       continue;
     }
     const person = byName.get(normName(sp.name));
-    deps.embeddings.upsertByExternalId({
+    await deps.embeddings.upsertByExternalId({
       personId: person?.id ?? null,
       externalId: sp.id,
       name: sp.name,

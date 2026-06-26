@@ -13,7 +13,7 @@ export type PersonPatch = Partial<Omit<NewPerson, "id" | "createdAt" | "updatedA
  */
 export function createPersonRepo(db: DB) {
   return {
-    create(input: PersonInput): Person {
+    async create(input: PersonInput): Promise<Person> {
       const ts = Date.now();
       return db
         .insert(people)
@@ -22,7 +22,7 @@ export function createPersonRepo(db: DB) {
         .get();
     },
 
-    list(opts?: { companyId?: number }): Person[] {
+    async list(opts?: { companyId?: number }): Promise<Person[]> {
       if (opts?.companyId !== undefined) {
         return db
           .select()
@@ -33,16 +33,16 @@ export function createPersonRepo(db: DB) {
       return db.select().from(people).all();
     },
 
-    get(id: number): Person | undefined {
+    async get(id: number): Promise<Person | undefined> {
       return db.select().from(people).where(eq(people.id, id)).get();
     },
 
-    getBySlug(slug: string): Person | undefined {
+    async getBySlug(slug: string): Promise<Person | undefined> {
       return db.select().from(people).where(eq(people.slug, slug)).get();
     },
 
     /** Look up a person by LinkedIn URL (the natural identity for dedupe). */
-    getByLinkedinUrl(linkedinUrl: string): Person | undefined {
+    async getByLinkedinUrl(linkedinUrl: string): Promise<Person | undefined> {
       return db
         .select()
         .from(people)
@@ -51,20 +51,20 @@ export function createPersonRepo(db: DB) {
     },
 
     /** All people linked to a company (used to prune stale founders on re-enrich). */
-    listByCompany(companyId: number): Person[] {
+    async listByCompany(companyId: number): Promise<Person[]> {
       return db.select().from(people).where(eq(people.companyId, companyId)).all();
     },
 
     /** Delete a person by id. May throw if referenced (e.g. by an application). */
-    remove(id: number): void {
-      db.delete(people).where(eq(people.id, id)).run();
+    async remove(id: number): Promise<void> {
+      await db.delete(people).where(eq(people.id, id)).run();
     },
 
     /**
      * All people who can give a warm intro (`can_refer = true`). Backed by the
      * `(can_refer, connection_degree)` index from ADR-0001 — the who-next read.
      */
-    listReferrers(): Person[] {
+    async listReferrers(): Promise<Person[]> {
       return db.select().from(people).where(eq(people.canRefer, true)).all();
     },
 
@@ -72,7 +72,7 @@ export function createPersonRepo(db: DB) {
      * All 1st-degree network contacts ingested from the user's connections
      * export (`relationship = network_contact`, `connection_degree = 1`).
      */
-    listConnections(): Person[] {
+    async listConnections(): Promise<Person[]> {
       return db
         .select()
         .from(people)
@@ -85,7 +85,7 @@ export function createPersonRepo(db: DB) {
         .all();
     },
 
-    update(id: number, patch: PersonPatch): Person | undefined {
+    async update(id: number, patch: PersonPatch): Promise<Person | undefined> {
       return db
         .update(people)
         .set({ ...patch, updatedAt: Date.now() })
@@ -95,7 +95,7 @@ export function createPersonRepo(db: DB) {
     },
 
     /** Link a person to a company (convenience over `update`). */
-    linkToCompany(id: number, companyId: number): Person | undefined {
+    async linkToCompany(id: number, companyId: number): Promise<Person | undefined> {
       return this.update(id, { companyId });
     },
   };

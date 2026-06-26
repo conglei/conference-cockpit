@@ -29,15 +29,15 @@ describe("roleRepo", () => {
   let companies: CompanyRepo;
   let roles: RoleRepo;
 
-  beforeEach(() => {
-    const db = createTestDb();
+  beforeEach(async () => {
+    const db = await createTestDb();
     companies = createCompanyRepo(db);
     roles = createRoleRepo(db);
   });
 
-  it("creates a role linked to a company with defaults", () => {
-    const company = companies.create({ slug: "acme", name: "Acme" });
-    const role = roles.create({
+  it("creates a role linked to a company with defaults", async () => {
+    const company = await companies.create({ slug: "acme", name: "Acme" });
+    const role = await roles.create({
       companyId: company.id,
       title: "Founding Engineer",
       source: "google_jobs",
@@ -48,39 +48,41 @@ describe("roleRepo", () => {
     expect(role.createdAt).toBeGreaterThan(0);
   });
 
-  it("dedupes on external_id (partial-unique where not null)", () => {
-    const company = companies.create({ slug: "acme", name: "Acme" });
-    roles.create({ companyId: company.id, title: "A", externalId: "job-1" });
-    expect(() =>
+  it("dedupes on external_id (partial-unique where not null)", async () => {
+    const company = await companies.create({ slug: "acme", name: "Acme" });
+    await roles.create({ companyId: company.id, title: "A", externalId: "job-1" });
+    await expect(
       roles.create({ companyId: company.id, title: "B", externalId: "job-1" }),
-    ).toThrow();
+    ).rejects.toThrow();
     // null external_id rows are allowed to coexist
-    expect(() => {
-      roles.create({ companyId: company.id, title: "C" });
-      roles.create({ companyId: company.id, title: "D" });
-    }).not.toThrow();
+    await expect(
+      (async () => {
+        await roles.create({ companyId: company.id, title: "C" });
+        await roles.create({ companyId: company.id, title: "D" });
+      })(),
+    ).resolves.not.toThrow();
   });
 
-  it("finds a role by external_id; null/empty never matches", () => {
-    const company = companies.create({ slug: "acme", name: "Acme" });
-    const r = roles.create({ companyId: company.id, title: "A", externalId: "job-9" });
-    expect(roles.findByExternalId("job-9")?.id).toBe(r.id);
-    expect(roles.findByExternalId("missing")).toBeUndefined();
-    expect(roles.findByExternalId(null)).toBeUndefined();
-    expect(roles.findByExternalId(undefined)).toBeUndefined();
+  it("finds a role by external_id; null/empty never matches", async () => {
+    const company = await companies.create({ slug: "acme", name: "Acme" });
+    const r = await roles.create({ companyId: company.id, title: "A", externalId: "job-9" });
+    expect((await roles.findByExternalId("job-9"))?.id).toBe(r.id);
+    expect(await roles.findByExternalId("missing")).toBeUndefined();
+    expect(await roles.findByExternalId(null)).toBeUndefined();
+    expect(await roles.findByExternalId(undefined)).toBeUndefined();
   });
 
-  it("filters list by status and company", () => {
-    const a = companies.create({ slug: "a", name: "A" });
-    const b = companies.create({ slug: "b", name: "B" });
-    roles.create({ companyId: a.id, title: "1", status: "new" });
-    roles.create({ companyId: a.id, title: "2", status: "interesting" });
-    roles.create({ companyId: b.id, title: "3", status: "new" });
+  it("filters list by status and company", async () => {
+    const a = await companies.create({ slug: "a", name: "A" });
+    const b = await companies.create({ slug: "b", name: "B" });
+    await roles.create({ companyId: a.id, title: "1", status: "new" });
+    await roles.create({ companyId: a.id, title: "2", status: "interesting" });
+    await roles.create({ companyId: b.id, title: "3", status: "new" });
 
-    expect(roles.list()).toHaveLength(3);
-    expect(roles.list({ status: "new" })).toHaveLength(2);
-    expect(roles.list({ companyId: a.id })).toHaveLength(2);
-    expect(roles.list({ companyId: a.id, status: "interesting" })).toHaveLength(1);
+    expect(await roles.list()).toHaveLength(3);
+    expect(await roles.list({ status: "new" })).toHaveLength(2);
+    expect(await roles.list({ companyId: a.id })).toHaveLength(2);
+    expect(await roles.list({ companyId: a.id, status: "interesting" })).toHaveLength(1);
   });
 });
 
@@ -88,8 +90,8 @@ describe("findJobs (job-first entry, FakeProvider, no network)", () => {
   let companies: CompanyRepo;
   let roles: RoleRepo;
 
-  beforeEach(() => {
-    const db = createTestDb();
+  beforeEach(async () => {
+    const db = await createTestDb();
     companies = createCompanyRepo(db);
     roles = createRoleRepo(db);
   });
@@ -118,7 +120,7 @@ describe("findJobs (job-first entry, FakeProvider, no network)", () => {
     expect(role.externalId).toBe("giga-fe-1");
 
     // company was created as an unenriched `new` stub and linked
-    const company = companies.get(role.companyId)!;
+    const company = (await companies.get(role.companyId))!;
     expect(company.name).toBe("Giga");
     expect(company.status).toBe("new");
     expect(company.source).toBe("google_jobs");
@@ -126,7 +128,7 @@ describe("findJobs (job-first entry, FakeProvider, no network)", () => {
   });
 
   it("links roles to an existing company instead of duplicating it", async () => {
-    const giga = companies.create({
+    const giga = await companies.create({
       slug: "giga",
       name: "Giga",
       status: "interesting",
@@ -142,8 +144,8 @@ describe("findJobs (job-first entry, FakeProvider, no network)", () => {
     expect(r.companiesCreated).toHaveLength(0);
     expect(r.inserted[0].companyId).toBe(giga.id);
     // existing company status is untouched by find-jobs
-    expect(companies.get(giga.id)!.status).toBe("interesting");
-    expect(companies.list()).toHaveLength(1);
+    expect((await companies.get(giga.id))!.status).toBe("interesting");
+    expect(await companies.list()).toHaveLength(1);
   });
 
   it("dedupes roles on external_id across runs", async () => {
@@ -160,8 +162,8 @@ describe("findJobs (job-first entry, FakeProvider, no network)", () => {
     expect(second.duplicates).toHaveLength(1);
     expect(second.companiesCreated).toHaveLength(0);
 
-    expect(roles.list()).toHaveLength(1);
-    expect(companies.list()).toHaveLength(1);
+    expect(await roles.list()).toHaveLength(1);
+    expect(await companies.list()).toHaveLength(1);
   });
 
   it("infers remote work_type from the location string", async () => {
@@ -188,7 +190,7 @@ describe("findJobs (job-first entry, FakeProvider, no network)", () => {
       "Founding Engineer",
     ]);
     expect(r.filtered).toBe(3);
-    expect(roles.list()).toHaveLength(2);
+    expect(await roles.list()).toHaveLength(2);
   });
 });
 
@@ -196,8 +198,8 @@ describe("markRoleInteresting (funnel convergence)", () => {
   let companies: CompanyRepo;
   let roles: RoleRepo;
 
-  beforeEach(() => {
-    const db = createTestDb();
+  beforeEach(async () => {
+    const db = await createTestDb();
     companies = createCompanyRepo(db);
     roles = createRoleRepo(db);
   });
@@ -209,46 +211,46 @@ describe("markRoleInteresting (funnel convergence)", () => {
     const { inserted } = await findJobs({ provider, companies, roles }, "fe");
     const role = inserted[0];
 
-    expect(companies.get(role.companyId)!.status).toBe("new");
+    expect((await companies.get(role.companyId))!.status).toBe("new");
 
-    const res = markRoleInteresting({ roles, companies }, role.id);
+    const res = await markRoleInteresting({ roles, companies }, role.id);
 
     expect(res.role.status).toBe("interesting");
     expect(res.company.status).toBe("interesting");
     expect(res.companyPromoted).toBe(true);
     // persisted through the data layer
-    expect(roles.get(role.id)!.status).toBe("interesting");
-    expect(companies.get(role.companyId)!.status).toBe("interesting");
+    expect((await roles.get(role.id))!.status).toBe("interesting");
+    expect((await companies.get(role.companyId))!.status).toBe("interesting");
   });
 
-  it("does not regress a company already further along the funnel", () => {
-    const company = companies.create({
+  it("does not regress a company already further along the funnel", async () => {
+    const company = await companies.create({
       slug: "pursued",
       name: "Pursued",
       status: "pursuing",
     });
-    const role = roles.create({ companyId: company.id, title: "X" });
+    const role = await roles.create({ companyId: company.id, title: "X" });
 
-    const res = markRoleInteresting({ roles, companies }, role.id);
+    const res = await markRoleInteresting({ roles, companies }, role.id);
 
     expect(res.role.status).toBe("interesting");
     expect(res.company.status).toBe("pursuing"); // unchanged
     expect(res.companyPromoted).toBe(false);
   });
 
-  it("is idempotent when re-marking", () => {
-    const company = companies.create({ slug: "c", name: "C", status: "new" });
-    const role = roles.create({ companyId: company.id, title: "X" });
+  it("is idempotent when re-marking", async () => {
+    const company = await companies.create({ slug: "c", name: "C", status: "new" });
+    const role = await roles.create({ companyId: company.id, title: "X" });
 
-    markRoleInteresting({ roles, companies }, role.id);
-    const second = markRoleInteresting({ roles, companies }, role.id);
+    await markRoleInteresting({ roles, companies }, role.id);
+    const second = await markRoleInteresting({ roles, companies }, role.id);
 
     expect(second.company.status).toBe("interesting");
     expect(second.companyPromoted).toBe(false);
   });
 
-  it("throws for an unknown role id", () => {
-    expect(() => markRoleInteresting({ roles, companies }, 999)).toThrow();
+  it("throws for an unknown role id", async () => {
+    await expect(markRoleInteresting({ roles, companies }, 999)).rejects.toThrow();
   });
 });
 
@@ -285,8 +287,8 @@ describe("findJobsForCompany (company-scoped harvest — issue #36)", () => {
   let companies: CompanyRepo;
   let roles: RoleRepo;
 
-  beforeEach(() => {
-    const db = createTestDb();
+  beforeEach(async () => {
+    const db = await createTestDb();
     companies = createCompanyRepo(db);
     roles = createRoleRepo(db);
   });
@@ -302,7 +304,7 @@ describe("findJobsForCompany (company-scoped harvest — issue #36)", () => {
 
   it("searches by a stored linkedin_company_id WITHOUT resolving", async () => {
     const provider = new ScopedJobsProvider({ via: "harvest" }, [job]);
-    const company = companies.create({
+    const company = await companies.create({
       slug: "acme",
       name: "Acme",
       linkedinCompanyId: "1815218",
@@ -324,7 +326,7 @@ describe("findJobsForCompany (company-scoped harvest — issue #36)", () => {
       { linkedinCompanyId: "424242", via: "harvest" },
       [job],
     );
-    const company = companies.create({ slug: "acme", name: "Acme", status: "interesting" });
+    const company = await companies.create({ slug: "acme", name: "Acme", status: "interesting" });
     expect(company.linkedinCompanyId).toBeNull();
 
     const r = await findJobsForCompany({ provider, companies, roles }, company.id);
@@ -332,14 +334,14 @@ describe("findJobsForCompany (company-scoped harvest — issue #36)", () => {
     expect(provider.resolveCalls).toBe(1); // missing id → exactly one resolve
     expect(r.resolvedCompanyId).toBe(true);
     // The resolved id was persisted back on the company.
-    expect(companies.get(company.id)?.linkedinCompanyId).toBe("424242");
+    expect((await companies.get(company.id))?.linkedinCompanyId).toBe("424242");
     expect(provider.lastSearch?.companyId).toBe("424242");
     expect(r.inserted).toHaveLength(1);
   });
 
   it("dedupes on external_id across runs", async () => {
     const provider = new ScopedJobsProvider({ via: "harvest" }, [job]);
-    const company = companies.create({
+    const company = await companies.create({
       slug: "acme",
       name: "Acme",
       linkedinCompanyId: "1",

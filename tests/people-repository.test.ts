@@ -7,14 +7,14 @@ describe("personRepo", () => {
   let people: PersonRepo;
   let companies: CompanyRepo;
 
-  beforeEach(() => {
-    const db = createTestDb();
+  beforeEach(async () => {
+    const db = await createTestDb();
     people = createPersonRepo(db);
     companies = createCompanyRepo(db);
   });
 
-  it("creates a person with enum + boolean defaults", () => {
-    const p = people.create({ slug: "jane", name: "Jane", relationship: "founder" });
+  it("creates a person with enum + boolean defaults", async () => {
+    const p = await people.create({ slug: "jane", name: "Jane", relationship: "founder" });
     expect(p.id).toBeGreaterThan(0);
     expect(p.relationship).toBe("founder");
     expect(p.outreachStatus).toBe("none"); // default
@@ -22,53 +22,55 @@ describe("personRepo", () => {
     expect(p.createdAt).toBeGreaterThan(0);
   });
 
-  it("gets by id, slug, and linkedin url", () => {
-    const p = people.create({
+  it("gets by id, slug, and linkedin url", async () => {
+    const p = await people.create({
       slug: "sam",
       name: "Sam",
       relationship: "referrer",
       linkedinUrl: "https://www.linkedin.com/in/sam",
     });
-    expect(people.get(p.id)?.name).toBe("Sam");
-    expect(people.getBySlug("sam")?.id).toBe(p.id);
-    expect(people.getByLinkedinUrl("https://www.linkedin.com/in/sam")?.id).toBe(p.id);
-    expect(people.getBySlug("nope")).toBeUndefined();
+    expect((await people.get(p.id))?.name).toBe("Sam");
+    expect((await people.getBySlug("sam"))?.id).toBe(p.id);
+    expect((await people.getByLinkedinUrl("https://www.linkedin.com/in/sam"))?.id).toBe(p.id);
+    expect(await people.getBySlug("nope")).toBeUndefined();
   });
 
-  it("links a person to a company and lists by company", () => {
-    const c = companies.create({ slug: "acme", name: "Acme" });
-    const p = people.create({ slug: "ceo", name: "CEO", relationship: "founder" });
-    const linked = people.linkToCompany(p.id, c.id);
+  it("links a person to a company and lists by company", async () => {
+    const c = await companies.create({ slug: "acme", name: "Acme" });
+    const p = await people.create({ slug: "ceo", name: "CEO", relationship: "founder" });
+    const linked = await people.linkToCompany(p.id, c.id);
     expect(linked?.companyId).toBe(c.id);
-    expect(people.list({ companyId: c.id })).toHaveLength(1);
-    expect(people.list({ companyId: 999 })).toHaveLength(0);
+    expect(await people.list({ companyId: c.id })).toHaveLength(1);
+    expect(await people.list({ companyId: 999 })).toHaveLength(0);
   });
 
-  it("allows multiple people with null linkedin url", () => {
-    expect(() => {
-      people.create({ slug: "a", name: "A", relationship: "founder" });
-      people.create({ slug: "b", name: "B", relationship: "founder" });
-    }).not.toThrow();
-    expect(people.list()).toHaveLength(2);
+  it("allows multiple people with null linkedin url", async () => {
+    await expect(
+      (async () => {
+        await people.create({ slug: "a", name: "A", relationship: "founder" });
+        await people.create({ slug: "b", name: "B", relationship: "founder" });
+      })(),
+    ).resolves.not.toThrow();
+    expect(await people.list()).toHaveLength(2);
   });
 
-  it("rejects duplicate linkedin url and duplicate slug", () => {
-    people.create({
+  it("rejects duplicate linkedin url and duplicate slug", async () => {
+    await people.create({
       slug: "one",
       name: "One",
       relationship: "founder",
       linkedinUrl: "https://www.linkedin.com/in/dup",
     });
-    expect(() =>
+    await expect(
       people.create({
         slug: "two",
         name: "Two",
         relationship: "founder",
         linkedinUrl: "https://www.linkedin.com/in/dup",
       }),
-    ).toThrow();
-    expect(() =>
+    ).rejects.toThrow();
+    await expect(
       people.create({ slug: "one", name: "Dup", relationship: "founder" }),
-    ).toThrow();
+    ).rejects.toThrow();
   });
 });

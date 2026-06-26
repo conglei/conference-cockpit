@@ -49,43 +49,43 @@ describe("LinkedinCsvSource (connection-source adapter)", () => {
 
 describe("ingestConnections", () => {
   let people: PersonRepo;
-  beforeEach(() => {
-    people = createPersonRepo(createTestDb());
+  beforeEach(async () => {
+    people = createPersonRepo(await createTestDb());
   });
 
-  it("ingests connections as 1st-degree network contacts", () => {
-    const r = ingestConnections(people, new LinkedinCsvSource(LINKEDIN_CSV));
+  it("ingests connections as 1st-degree network contacts", async () => {
+    const r = await ingestConnections(people, new LinkedinCsvSource(LINKEDIN_CSV));
     expect(r.inserted).toBe(4);
-    const sam = people.getByLinkedinUrl("https://www.linkedin.com/in/sam-engineer");
+    const sam = await people.getByLinkedinUrl("https://www.linkedin.com/in/sam-engineer");
     expect(sam?.relationship).toBe("network_contact");
     expect(sam?.connectionDegree).toBe(1);
     expect(sam?.canRefer).toBe(false);
-    expect(people.listConnections()).toHaveLength(4);
+    expect(await people.listConnections()).toHaveLength(4);
   });
 
-  it("is idempotent — re-ingesting the same export adds no duplicates", () => {
-    ingestConnections(people, new LinkedinCsvSource(LINKEDIN_CSV));
-    const second = ingestConnections(people, new LinkedinCsvSource(LINKEDIN_CSV));
+  it("is idempotent — re-ingesting the same export adds no duplicates", async () => {
+    await ingestConnections(people, new LinkedinCsvSource(LINKEDIN_CSV));
+    const second = await ingestConnections(people, new LinkedinCsvSource(LINKEDIN_CSV));
     expect(second.inserted).toBe(0);
     expect(second.updated).toBe(4);
-    expect(people.list()).toHaveLength(4);
+    expect(await people.list()).toHaveLength(4);
   });
 });
 
 describe("crossReferenceCompany", () => {
   let people: PersonRepo;
   let companies: CompanyRepo;
-  beforeEach(() => {
-    const db = createTestDb();
+  beforeEach(async () => {
+    const db = await createTestDb();
     people = createPersonRepo(db);
     companies = createCompanyRepo(db);
   });
 
   it("flags connections on the roster as referrers (sets degree + can_refer)", async () => {
-    ingestConnections(people, new LinkedinCsvSource(LINKEDIN_CSV));
+    await ingestConnections(people, new LinkedinCsvSource(LINKEDIN_CSV));
     // Giga's roster (default FakeProvider fixture) includes Jane + Sam, who are
     // both in the user's connections; Pat is a connection but NOT on the roster.
-    const giga = companies.create({
+    const giga = await companies.create({
       slug: "giga",
       name: "Giga",
       linkedinUrl: "https://www.linkedin.com/company/gigaml",
@@ -107,14 +107,14 @@ describe("crossReferenceCompany", () => {
       expect(p.connectionDegree).toBe(1);
     }
     // Pat is a connection but not on the roster → not flagged.
-    const pat = people.getByLinkedinUrl("https://www.linkedin.com/in/pat-outsider");
+    const pat = await people.getByLinkedinUrl("https://www.linkedin.com/in/pat-outsider");
     expect(pat?.canRefer).toBe(false);
-    expect(people.listReferrers()).toHaveLength(2);
+    expect(await people.listReferrers()).toHaveLength(2);
   });
 
   it("returns no referrers when the company has no LinkedIn URL", async () => {
-    ingestConnections(people, new LinkedinCsvSource(LINKEDIN_CSV));
-    const c = companies.create({ slug: "unresolved", name: "Unresolved" });
+    await ingestConnections(people, new LinkedinCsvSource(LINKEDIN_CSV));
+    const c = await companies.create({ slug: "unresolved", name: "Unresolved" });
     const r = await crossReferenceCompany(companies, people, new FakeProvider(), c);
     expect(r.rosterSize).toBe(0);
     expect(r.referrers).toHaveLength(0);
@@ -124,8 +124,8 @@ describe("crossReferenceCompany", () => {
 describe("whoNext ordering (fit × connection-strength)", () => {
   let people: PersonRepo;
   let companies: CompanyRepo;
-  beforeEach(() => {
-    const db = createTestDb();
+  beforeEach(async () => {
+    const db = await createTestDb();
     people = createPersonRepo(db);
     companies = createCompanyRepo(db);
   });
@@ -136,12 +136,12 @@ describe("whoNext ordering (fit × connection-strength)", () => {
     expect(connectionStrength(null)).toBe(1);
   });
 
-  it("ranks by company-fit × connection-strength", () => {
-    const hot = companies.create({ slug: "hot", name: "Hot Co", scoreOverall: 0.9 });
-    const cool = companies.create({ slug: "cool", name: "Cool Co", scoreOverall: 0.4 });
+  it("ranks by company-fit × connection-strength", async () => {
+    const hot = await companies.create({ slug: "hot", name: "Hot Co", scoreOverall: 0.9 });
+    const cool = await companies.create({ slug: "cool", name: "Cool Co", scoreOverall: 0.4 });
 
     // A: 1st-degree at the high-fit company → 0.9 × 1.0 = 0.90
-    const a = people.create({
+    const a = await people.create({
       slug: "a",
       name: "A Contact",
       relationship: "network_contact",
@@ -150,7 +150,7 @@ describe("whoNext ordering (fit × connection-strength)", () => {
       companyId: hot.id,
     });
     // B: 2nd-degree at the high-fit company → 0.9 × 0.5 = 0.45
-    const b = people.create({
+    const b = await people.create({
       slug: "b",
       name: "B Contact",
       relationship: "network_contact",
@@ -159,7 +159,7 @@ describe("whoNext ordering (fit × connection-strength)", () => {
       companyId: hot.id,
     });
     // C: 1st-degree at the lower-fit company → 0.4 × 1.0 = 0.40
-    const c = people.create({
+    const c = await people.create({
       slug: "c",
       name: "C Contact",
       relationship: "network_contact",
@@ -168,7 +168,7 @@ describe("whoNext ordering (fit × connection-strength)", () => {
       companyId: cool.id,
     });
     // Not a referrer → excluded entirely.
-    people.create({
+    await people.create({
       slug: "d",
       name: "D Contact",
       relationship: "network_contact",
@@ -177,16 +177,16 @@ describe("whoNext ordering (fit × connection-strength)", () => {
       companyId: hot.id,
     });
 
-    const ranked = whoNext(people, companies);
+    const ranked = await whoNext(people, companies);
     expect(ranked.map((e) => e.person.id)).toEqual([a.id, b.id, c.id]);
     expect(ranked[0].priority).toBeCloseTo(0.9);
     expect(ranked[1].priority).toBeCloseTo(0.45);
     expect(ranked[2].priority).toBeCloseTo(0.4);
   });
 
-  it("gives an unscored company a neutral fit so warm paths aren't buried", () => {
-    const c = companies.create({ slug: "unscored", name: "Unscored" });
-    const p = people.create({
+  it("gives an unscored company a neutral fit so warm paths aren't buried", async () => {
+    const c = await companies.create({ slug: "unscored", name: "Unscored" });
+    const p = await people.create({
       slug: "p",
       name: "P",
       relationship: "network_contact",
@@ -194,7 +194,7 @@ describe("whoNext ordering (fit × connection-strength)", () => {
       canRefer: true,
       companyId: c.id,
     });
-    const ranked = whoNext(people, companies);
+    const ranked = await whoNext(people, companies);
     expect(ranked).toHaveLength(1);
     expect(ranked[0].person.id).toBe(p.id);
     expect(ranked[0].companyFit).toBe(0.5);

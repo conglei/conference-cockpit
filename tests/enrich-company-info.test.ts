@@ -13,8 +13,8 @@ describe("enrichCompanyInfo (firmographics, no founders — issue #36)", () => {
   let companies: CompanyRepo;
   let people: PersonRepo;
 
-  beforeEach(() => {
-    const db = createTestDb();
+  beforeEach(async () => {
+    const db = await createTestDb();
     companies = createCompanyRepo(db);
     people = createPersonRepo(db);
   });
@@ -32,7 +32,7 @@ describe("enrichCompanyInfo (firmographics, no founders — issue #36)", () => {
         },
       },
     });
-    const company = companies.create({ slug: "acme", name: "Acme", status: "new" });
+    const company = await companies.create({ slug: "acme", name: "Acme", status: "new" });
 
     const meter = new CostMeter();
     const r = await enrichCompanyInfo({ companies, provider }, company.id, { meter });
@@ -45,7 +45,7 @@ describe("enrichCompanyInfo (firmographics, no founders — issue #36)", () => {
     expect(r.company.status).toBe("enriched");
 
     // It writes NO people rows.
-    expect(people.listByCompany(company.id)).toHaveLength(0);
+    expect(await people.listByCompany(company.id)).toHaveLength(0);
   });
 
   it("persists funding fields and still writes no people rows", async () => {
@@ -62,7 +62,7 @@ describe("enrichCompanyInfo (firmographics, no founders — issue #36)", () => {
         },
       },
     });
-    const company = companies.create({ slug: "acme", name: "Acme", status: "new" });
+    const company = await companies.create({ slug: "acme", name: "Acme", status: "new" });
 
     const r = await enrichCompanyInfo({ companies, provider }, company.id);
 
@@ -73,7 +73,7 @@ describe("enrichCompanyInfo (firmographics, no founders — issue #36)", () => {
     expect(r.company.fundingTotal).toBe("$2.1B");
     expect(r.company.status).toBe("enriched");
     // Company-only pass: no people rows.
-    expect(people.listByCompany(company.id)).toHaveLength(0);
+    expect(await people.listByCompany(company.id)).toHaveLength(0);
   });
 
   it("never overwrites an existing value with a null/undefined return", async () => {
@@ -83,7 +83,7 @@ describe("enrichCompanyInfo (firmographics, no founders — issue #36)", () => {
         acme: { linkedinCompanyId: "999", via: "fake" },
       },
     });
-    const company = companies.create({
+    const company = await companies.create({
       slug: "acme",
       name: "Acme",
       domain: "acme.com",
@@ -105,13 +105,13 @@ describe("enrichCompanyInfo (firmographics, no founders — issue #36)", () => {
     });
 
     // A `pursuing` company is not regressed to `enriched`.
-    const pursuing = companies.create({ slug: "a", name: "A", status: "pursuing" });
+    const pursuing = await companies.create({ slug: "a", name: "A", status: "pursuing" });
     const r1 = await enrichCompanyInfo({ companies, provider }, pursuing.id);
     expect(r1.company.status).toBe("pursuing");
     expect(r1.company.linkedinCompanyId).toBe("1");
 
     // A `passed` company stays passed (firmographics still persisted).
-    const passed = companies.create({ slug: "b", name: "B", status: "passed" });
+    const passed = await companies.create({ slug: "b", name: "B", status: "passed" });
     const r2 = await enrichCompanyInfo({ companies, provider }, passed.id);
     expect(r2.company.status).toBe("passed");
     expect(r2.company.linkedinCompanyId).toBe("1");
@@ -124,8 +124,8 @@ describe("enrichCompanyInfo (firmographics, no founders — issue #36)", () => {
         giga: { domain: "giga.com", linkedinCompanyId: "2", via: "fake" },
       },
     });
-    const a = companies.create({ slug: "acme", name: "Acme", status: "new" });
-    const b = companies.create({ slug: "giga", name: "Giga", status: "new" });
+    const a = await companies.create({ slug: "acme", name: "Acme", status: "new" });
+    const b = await companies.create({ slug: "giga", name: "Giga", status: "new" });
 
     const { results, totalUsd } = await enrichCompaniesInfo(
       [a.id, b.id],

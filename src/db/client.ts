@@ -1,36 +1,63 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import * as schema from "./schema";
 
-export const DB_URL = process.env.DATABASE_URL ?? "data/conference.db";
-
 /**
- * Create a Drizzle client over a better-sqlite3 database.
- * Pass ":memory:" for an ephemeral DB (used by tests).
+ * Resolve the DB URL from the environment, READ AT CALL TIME. This must be lazy:
+ * CLIs call `loadEnvFile()` *after* importing this module, so `process.env.DATABASE_URL`
+ * is not yet populated at import time. An eager `const DB_URL = process.env…` froze
+ * to the local fallback and made every CLI silently ignore a configured Turso URL.
  */
-export function createDb(url: string = DB_URL) {
-  if (url !== ":memory:") {
-    mkdirSync(dirname(url), { recursive: true });
-  }
-  const sqlite = new Database(url);
-  sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("foreign_keys = ON");
-  return drizzle(sqlite, { schema });
+export function resolveDbUrl(): string {
+  return process.env.DATABASE_URL ?? "data/conference.db";
 }
 
+/** libsql needs a URL scheme. Map bare paths → file:, pass schemes through. */
+function toLibsqlUrl(url: string): string {
+  if (url === ":memory:") return ":memory:";
+  if (/^(file|libsql|https?|wss?):/.test(url)) return url;
+  mkdirSync(dirname(url), { recursive: true }); // local file path
+  return `file:${url}`;
+}
+
+export function createDb(url: string = resolveDbUrl()) {
+  const client = createClient({
+    url: toLibsqlUrl(url),
+    authToken: process.env.TURSO_AUTH_TOKEN ?? process.env.LIBSQL_AUTH_TOKEN,
+  });
+  return drizzle(client, { schema });
+}
 export type DB = ReturnType<typeof createDb>;
 
 /**
- * A READ-ONLY Drizzle client — the connection physically cannot mutate the DB.
- * Used by the agent-facing `query` CLI so exploration can never corrupt data
- * (writes go through the narrow `conf-followup` verbs instead). See ADR-0005.
+ * The mutating entry points on the Drizzle handle. The agent's query path
+ * (`src/query`) only ever reads (`.select()` / `.query`), so blocking these at
+ * the seam makes a read-only handle that *cannot* drive a write — restoring the
+ * ADR-0005 invariant the libSQL migration dropped (libSQL has no connection-level
+ * read-only flag, unlike better-sqlite3's `{ readonly: true }`).
  */
-export function createReadOnlyDb(url: string = DB_URL) {
-  const sqlite = new Database(url, { readonly: true });
-  sqlite.pragma("foreign_keys = ON");
-  return drizzle(sqlite, { schema });
+const WRITE_METHODS = new Set(["insert", "update", "delete", "run", "batch", "transaction"]);
+
+/**
+ * A read-only DB handle for exploration (the `query` CLI, ADR-0005). Reads pass
+ * through to a normal connection; any write method throws. This is enforcement at
+ * the application seam, not the transport — in the cloud, pair it with a
+ * read-only Turso token (`turso db tokens create --read-only`) for a second line.
+ */
+export function createReadOnlyDb(url: string = resolveDbUrl()): DB {
+  const db = createDb(url);
+  return new Proxy(db, {
+    get(target, prop, receiver) {
+      if (typeof prop === "string" && WRITE_METHODS.has(prop)) {
+        return () => {
+          throw new Error(`read-only DB: '${prop}' is blocked (ADR-0005)`);
+        };
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as DB;
 }
 
 // Lazy singleton for the app/CLIs (tests create their own isolated DBs).

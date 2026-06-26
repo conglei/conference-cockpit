@@ -9,7 +9,7 @@
  * step degrades gracefully and prints exactly what to configure.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { createProvider, resolveCompany, SearchApiProvider } from "../src/providers";
 
@@ -18,7 +18,7 @@ loadEnvFile();
 
 async function main() {
   const arg = process.argv[2];
-  const repo = createCompanyRepo(createDb(DB_URL));
+  const repo = createCompanyRepo(createDb());
   const provider = createProvider();
 
   // Web-search fallback tier: only wire a real SearchAPI when its key exists,
@@ -29,8 +29,8 @@ async function main() {
       : undefined;
 
   const targets = arg
-    ? [repo.getBySlug(arg)].filter((c): c is NonNullable<typeof c> => Boolean(c))
-    : repo.list().filter((c) => !c.domain || !c.linkedinUrl);
+    ? [await repo.getBySlug(arg)].filter((c): c is NonNullable<typeof c> => Boolean(c))
+    : (await repo.list()).filter((c) => !c.domain || !c.linkedinUrl);
 
   if (arg && targets.length === 0) {
     console.error(`No company with slug "${arg}".`);

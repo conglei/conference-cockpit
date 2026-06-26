@@ -9,7 +9,7 @@
  *   pnpm conf-plan --lens career-mover
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import {
   buildPlan,
   loadGraph,
@@ -27,7 +27,7 @@ function arg(name: string): string | undefined {
 }
 const hasFlag = (name: string) => process.argv.includes(`--${name}`);
 
-function main() {
+async function main() {
   const lensKey = arg("lens") ?? "career-mover";
   const limit = Number(arg("limit") ?? DEFAULT_PLAN_LIMIT);
   const lens = getLens(lensKey);
@@ -36,11 +36,11 @@ function main() {
     process.exit(1);
   }
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const plan = buildPlan({
     lens,
     profile: loadGoalProfile(),
-    graph: loadGraph(db),
+    graph: await loadGraph(db),
     limit,
   });
 
@@ -77,4 +77,4 @@ function main() {
   }
 }
 
-main();
+await main();

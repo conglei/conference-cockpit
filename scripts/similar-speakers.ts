@@ -7,13 +7,13 @@
  *   pnpm similar-speakers "Abridge" --k 8
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createSpeakerEmbeddingRepo } from "../src/db/speaker-embedding-repository";
 import { nearestToSpeaker } from "../src/speakers/semantic-search";
 
 loadEnvFile();
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   let k = 10;
   const kFlag = args.indexOf("--k");
@@ -27,11 +27,11 @@ function main() {
     process.exit(1);
   }
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const repo = createSpeakerEmbeddingRepo(db);
 
   // Resolve the seed: exact external id, else first name/company substring match.
-  const all = repo.list();
+  const all = await repo.list();
   const q = query.toLowerCase();
   const seed =
     all.find((s) => s.externalId === query) ??
@@ -45,10 +45,10 @@ function main() {
 
   console.log(`Seed: ${seed.name}${seed.company ? ` — ${seed.company}` : ""} (${seed.externalId})`);
   console.log(`Nearest ${k}:`);
-  for (const m of nearestToSpeaker(repo, seed.externalId, k)) {
+  for (const m of await nearestToSpeaker(repo, seed.externalId, k)) {
     const co = m.company ? ` — ${m.company}` : "";
     console.log(`  ${m.score.toFixed(3)}  ${m.name}${co}${m.role ? ` (${m.role})` : ""}`);
   }
 }
 
-main();
+await main();

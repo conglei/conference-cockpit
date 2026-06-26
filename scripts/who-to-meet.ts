@@ -11,31 +11,13 @@
  *
  * Ranks against profile/preferences.md (taste) + profile/resume.md (warm paths).
  */
-import { readFileSync } from "node:fs";
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
-import { createPersonRepo } from "../src/db/people-repository";
-import { createCompanyRepo } from "../src/db/repository";
-import { createTalkRepo } from "../src/db/talk-repository";
-import { loadGoalProfile } from "../src/plan/profile";
-import {
-  extractBackground,
-  getObjective,
-  rankPeople,
-  type PeopleGraph,
-} from "../src/plan/who-to-meet";
+import { createDb } from "../src/db/client";
+import { planWhoToMeet } from "../src/plan";
 
 loadEnvFile();
 
-function readIfPresent(path: string): string | undefined {
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return undefined;
-  }
-}
-
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   const json = args.includes("--json");
   const speakingOnly = args.includes("--speaking");
@@ -49,27 +31,15 @@ function main() {
   if (v !== -1) vertical = args[v + 1];
 
   const iFlag = args.indexOf("--intent");
-  const objective = getObjective(iFlag !== -1 ? args[iFlag + 1] : undefined);
+  const intent = iFlag !== -1 ? args[iFlag + 1] : undefined;
 
-  const db = createDb(DB_URL);
-  const people = createPersonRepo(db);
-  const companies = createCompanyRepo(db);
-  const talks = createTalkRepo(db);
-
-  const byId = new Map(companies.list().map((c) => [c.id, c]));
-  const graph: PeopleGraph = {
-    people: people.list(),
-    companyById: (id) => (id == null ? undefined : byId.get(id)),
-    talksBySpeaker: (id) => talks.bySpeaker(id),
-  };
-
-  const profile = loadGoalProfile();
-  const background = extractBackground(readIfPresent("profile/resume.md"));
-
-  const ranked = rankPeople(
-    { graph, profile, background, now: new Date(), objective },
-    { limit, vertical, speakingOnly },
-  );
+  const db = createDb();
+  const { people: ranked, totalPeople, objective, background } = await planWhoToMeet(db, {
+    intent,
+    vertical,
+    speakingOnly,
+    limit,
+  });
 
   if (json) {
     console.log(JSON.stringify(ranked, null, 2));
@@ -78,7 +48,7 @@ function main() {
 
   const scope = vertical ? ` in "${vertical}"` : "";
   console.log(
-    `Who to meet${scope} [${objective.label}] — top ${ranked.length} of ${graph.people.length} people` +
+    `Who to meet${scope} [${objective.label}] — top ${ranked.length} of ${totalPeople} people` +
       (background.employers.length ? ` (warm paths vs ${background.employers.length} past employers)` : ""),
   );
   console.log("");
@@ -96,4 +66,4 @@ function main() {
   }
 }
 
-main();
+await main();

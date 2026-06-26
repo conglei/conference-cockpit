@@ -121,7 +121,7 @@ export async function refresh(
   }
 
   const refreshedAt = opts.now ?? Date.now();
-  appMeta.setLastRefreshAt(refreshedAt);
+  await appMeta.setLastRefreshAt(refreshedAt);
 
   return {
     sources: out,
@@ -137,11 +137,11 @@ export async function refresh(
  * the `daily` skill reads (PRD user-story 40). Pure read through the data layer.
  * A null/undefined watermark means "everything new" (first ever run).
  */
-export function newCompaniesSince(
+export async function newCompaniesSince(
   companies: CompanyRepo,
   since: number | undefined,
-): Company[] {
-  const all = companies.list();
+): Promise<Company[]> {
+  const all = await companies.list();
   const cutoff = since ?? 0;
   return all
     .filter((c) => c.createdAt > cutoff)

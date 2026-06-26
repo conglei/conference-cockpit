@@ -118,8 +118,8 @@ describe("importCsv (parse → map → resolve → dedupe → insert as new)", (
   let repo: CompanyRepo;
   const provider = new FakeProvider();
 
-  beforeEach(() => {
-    repo = createCompanyRepo(createTestDb());
+  beforeEach(async () => {
+    repo = createCompanyRepo(await createTestDb());
   });
 
   it("imports a shaped CSV: rows land as new/csv, resolved to a canonical identity", async () => {
@@ -130,7 +130,7 @@ describe("importCsv (parse → map → resolve → dedupe → insert as new)", (
     expect(res.inserted).toBe(2);
     expect(res.duplicates).toBe(0);
 
-    const all = repo.list();
+    const all = await repo.list();
     expect(all).toHaveLength(2);
     for (const c of all) {
       expect(c.status).toBe("new");
@@ -140,14 +140,14 @@ describe("importCsv (parse → map → resolve → dedupe → insert as new)", (
       expect(c.domain).toBeTruthy();
       expect(c.linkedinUrl).toBeTruthy();
     }
-    const anthropic = repo.list().find((c) => c.name === "Anthropic")!;
+    const anthropic = (await repo.list()).find((c) => c.name === "Anthropic")!;
     expect(anthropic.domain).toBe("anthropic.com");
     expect(anthropic.latestRound).toBe("Series A");
   });
 
   it("dedupes on the canonical identity, not the name", async () => {
     // Pre-seed a company that already owns anthropic.com under a DIFFERENT name.
-    repo.create({
+    await repo.create({
       slug: "claude-co",
       name: "Claude Co",
       domain: "anthropic.com",
@@ -160,9 +160,9 @@ describe("importCsv (parse → map → resolve → dedupe → insert as new)", (
     // Anthropic row is a duplicate by domain (despite the name mismatch); only Giga inserts.
     expect(res.duplicates).toBe(1);
     expect(res.inserted).toBe(1);
-    expect(repo.list().filter((c) => c.domain === "anthropic.com")).toHaveLength(1);
+    expect((await repo.list()).filter((c) => c.domain === "anthropic.com")).toHaveLength(1);
     // existing row untouched
-    expect(repo.getBySlug("claude-co")!.status).toBe("interesting");
+    expect((await repo.getBySlug("claude-co"))!.status).toBe("interesting");
   });
 
   it("is idempotent: re-importing the same CSV creates no duplicates", async () => {
@@ -173,7 +173,7 @@ describe("importCsv (parse → map → resolve → dedupe → insert as new)", (
     expect(second.inserted).toBe(0);
     expect(second.duplicates).toBe(2);
 
-    expect(repo.list()).toHaveLength(2);
+    expect(await repo.list()).toHaveLength(2);
   });
 
   it("mixed-shape import: two different supplied mappings resolve to the same identities", async () => {
@@ -186,7 +186,7 @@ describe("importCsv (parse → map → resolve → dedupe → insert as new)", (
     expect(b.duplicates).toBe(2);
 
     // Still exactly two rows, keyed on canonical domain.
-    const all = repo.list();
+    const all = await repo.list();
     expect(all).toHaveLength(2);
     expect(new Set(all.map((c) => c.domain))).toEqual(
       new Set(["anthropic.com", "giga.com"]),
@@ -205,7 +205,7 @@ Anthropic (Public Benefit),https://www.anthropic.com
     const res = await importCsv(repo, provider, dupeCsv, map);
     expect(res.inserted).toBe(1);
     expect(res.duplicates).toBe(1);
-    expect(repo.list()).toHaveLength(1);
+    expect(await repo.list()).toHaveLength(1);
   });
 
   it("skips rows that map to no company name", async () => {
@@ -251,7 +251,7 @@ Paradigm,https://startups.gallery/companies/paradigm
       return { domain: "paradigmai.com", websiteUrl: "https://paradigmai.com" };
     };
 
-    const repo = createCompanyRepo(createTestDb());
+    const repo = createCompanyRepo(await createTestDb());
     // A provider that would resolve a DIFFERENT (wrong) domain by name, so the
     // assertions prove the crawl won, not name resolution.
     const wrongByName = new FakeProvider({
@@ -269,7 +269,7 @@ Paradigm,https://startups.gallery/companies/paradigm
     expect(res.inserted).toBe(1);
     expect(crawledUrl).toBe("https://startups.gallery/companies/paradigm");
 
-    const paradigm = repo.list().find((c) => c.name === "Paradigm")!;
+    const paradigm = (await repo.list()).find((c) => c.name === "Paradigm")!;
     // Identity comes from the CRAWL, not the (wrong) name resolution.
     expect(paradigm.domain).toBe("paradigmai.com");
     expect(paradigm.websiteUrl).toBe("https://paradigmai.com");
@@ -300,11 +300,11 @@ Paradigm,https://startups.gallery/companies/paradigm
       },
     };
 
-    const repo = createCompanyRepo(createTestDb());
+    const repo = createCompanyRepo(await createTestDb());
     const res = await importCsv(repo, blindProvider, AGG_CSV, aggMap, { crawl });
 
     expect(res.inserted).toBe(1);
-    const paradigm = repo.list().find((c) => c.name === "Paradigm")!;
+    const paradigm = (await repo.list()).find((c) => c.name === "Paradigm")!;
     expect(paradigm.domain).toBeNull();
     expect(paradigm.websiteUrl).toBeNull();
   });

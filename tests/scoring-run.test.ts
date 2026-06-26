@@ -11,15 +11,15 @@ import {
 
 describe("scoreCompanies — funnel with FakeScorer (offline, real Drizzle)", () => {
   let repo: CompanyRepo;
-  beforeEach(() => {
-    repo = createCompanyRepo(createTestDb());
+  beforeEach(async () => {
+    repo = createCompanyRepo(await createTestDb());
   });
 
   it("pre-filters then persists sub-scores + overall + rationale + scored_at", async () => {
-    const keep = repo.create({ slug: "tiny", name: "Tiny Lab", sizeBand: "tiny" });
-    const drop = repo.create({ slug: "scaled", name: "Scaled Corp", sizeBand: "large" });
+    const keep = await repo.create({ slug: "tiny", name: "Tiny Lab", sizeBand: "tiny" });
+    const drop = await repo.create({ slug: "scaled", name: "Scaled Corp", sizeBand: "large" });
 
-    const { scored, dropped } = await scoreCompanies(repo.list(), {
+    const { scored, dropped } = await scoreCompanies(await repo.list(), {
       repo,
       scorer: new FakeScorer(),
       weights: DEFAULT_WEIGHTS,
@@ -29,7 +29,7 @@ describe("scoreCompanies — funnel with FakeScorer (offline, real Drizzle)", ()
     expect(dropped.map((d) => d.company.id)).toEqual([drop.id]);
     expect(scored.map((s) => s.company.id)).toEqual([keep.id]);
 
-    const reread = repo.get(keep.id)!;
+    const reread = (await repo.get(keep.id))!;
     // This row has no founder/investor signal, so the co-dominant axes are NULL
     // (missing data, not fabricated). The secondary axes are always derivable.
     expect(reread.scoreFounderQuality).toBeNull();
@@ -43,11 +43,11 @@ describe("scoreCompanies — funnel with FakeScorer (offline, real Drizzle)", ()
     expect(reread.scoredAt).toBeGreaterThan(0);
 
     // The dropped company is left unscored.
-    expect(repo.get(drop.id)!.scoreOverall).toBeNull();
+    expect((await repo.get(drop.id))!.scoreOverall).toBeNull();
   });
 
   it("co-dominant weights make founder/investor dominate the overall", async () => {
-    const c = repo.create({ slug: "co", name: "Co" });
+    const c = await repo.create({ slug: "co", name: "Co" });
     // pin sub-scores: founder/investor high, secondary low
     const scorer = new FakeScorer({
       co: { founder_quality: 1, investor_quality: 1, domain_fit: 0, stage_fit: 0, size_fit: 0 },
@@ -85,7 +85,7 @@ describe("scoreCompanies — funnel with FakeScorer (offline, real Drizzle)", ()
   });
 
   it("a NULL sub-score is persisted as NULL — missing data, never fabricated to 0", async () => {
-    const c = repo.create({ slug: "thin", name: "Thin" });
+    const c = await repo.create({ slug: "thin", name: "Thin" });
     // founder data missing → null; everything else present.
     const scorer = new FakeScorer({
       thin: { founder_quality: null, investor_quality: 0.6, domain_fit: 0.5, stage_fit: 0.5, size_fit: 0.5 },
@@ -100,7 +100,7 @@ describe("scoreCompanies — funnel with FakeScorer (offline, real Drizzle)", ()
     // Preserved through the result...
     expect(scored[0].result.founder_quality).toBeNull();
     // ...and through persistence (NOT turned into 0).
-    const reread = repo.get(c.id)!;
+    const reread = (await repo.get(c.id))!;
     expect(reread.scoreFounderQuality).toBeNull();
     expect(reread.scoreInvestorQuality).toBe(0.6);
     // overall is still computed (renormalized + co-dominant discount), never null here.
@@ -109,7 +109,7 @@ describe("scoreCompanies — funnel with FakeScorer (offline, real Drizzle)", ()
   });
 
   it("FakeScorer returns NULL co-dominant axes when the row carries no founder/investor signal", async () => {
-    const c = repo.create({ slug: "bare", name: "Bare" }); // no enrichment, no leadInvestor
+    const c = await repo.create({ slug: "bare", name: "Bare" }); // no enrichment, no leadInvestor
     const { scored } = await scoreCompanies([c], {
       repo,
       scorer: new FakeScorer(),
@@ -123,7 +123,7 @@ describe("scoreCompanies — funnel with FakeScorer (offline, real Drizzle)", ()
   });
 
   it("scoredBy provenance defaults to 'rubric' and persists", async () => {
-    const c = repo.create({ slug: "prov", name: "Prov" });
+    const c = await repo.create({ slug: "prov", name: "Prov" });
     const { scored } = await scoreCompanies([c], {
       repo,
       scorer: new FakeScorer(),
@@ -131,7 +131,7 @@ describe("scoreCompanies — funnel with FakeScorer (offline, real Drizzle)", ()
       criteria: {},
     });
     expect(scored[0].result.scoredBy).toBe("rubric");
-    expect(repo.get(c.id)!.scoreScoredBy).toBe("rubric");
+    expect((await repo.get(c.id))!.scoreScoredBy).toBe("rubric");
   });
 
   it("toScorePatch defaults scoredBy to 'rubric' and serializes an llm verdict", () => {
@@ -165,14 +165,14 @@ describe("scoreCompanies — funnel with FakeScorer (offline, real Drizzle)", ()
 
 describe("sortByScore — any axis, nulls last", () => {
   let repo: CompanyRepo;
-  beforeEach(() => {
-    repo = createCompanyRepo(createTestDb());
+  beforeEach(async () => {
+    repo = createCompanyRepo(await createTestDb());
   });
 
   it("sorts by overall desc by default, unscored rows last", async () => {
-    const a = repo.create({ slug: "a", name: "A" });
-    const b = repo.create({ slug: "b", name: "B" });
-    const c = repo.create({ slug: "c", name: "C" }); // never scored
+    const a = await repo.create({ slug: "a", name: "A" });
+    const b = await repo.create({ slug: "b", name: "B" });
+    const c = await repo.create({ slug: "c", name: "C" }); // never scored
 
     await scoreCompanies([a, b], {
       repo,
@@ -184,14 +184,14 @@ describe("sortByScore — any axis, nulls last", () => {
       criteria: {},
     });
 
-    const ranked = sortByScore(repo.list(), "overall", "desc");
+    const ranked = sortByScore(await repo.list(), "overall", "desc");
     expect(ranked.map((x) => x.slug)).toEqual(["b", "a", "c"]);
     void c;
   });
 
   it("can sort by a single axis (founder_quality)", async () => {
-    const a = repo.create({ slug: "a", name: "A" });
-    const b = repo.create({ slug: "b", name: "B" });
+    const a = await repo.create({ slug: "a", name: "A" });
+    const b = await repo.create({ slug: "b", name: "B" });
     await scoreCompanies([a, b], {
       repo,
       scorer: new FakeScorer({
@@ -201,9 +201,9 @@ describe("sortByScore — any axis, nulls last", () => {
       weights: DEFAULT_WEIGHTS,
       criteria: {},
     });
-    const byFounder = sortByScore(repo.list(), "founder_quality", "desc");
+    const byFounder = sortByScore(await repo.list(), "founder_quality", "desc");
     expect(byFounder[0].slug).toBe("a");
-    const byInvestor = sortByScore(repo.list(), "investor_quality", "desc");
+    const byInvestor = sortByScore(await repo.list(), "investor_quality", "desc");
     expect(byInvestor[0].slug).toBe("b");
   });
 });

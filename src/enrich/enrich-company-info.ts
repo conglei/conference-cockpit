@@ -72,7 +72,7 @@ export async function enrichCompanyInfo(
   const { companies, provider } = deps;
   const notes: string[] = [];
 
-  const company = companies.get(companyId);
+  const company = await companies.get(companyId);
   if (!company) {
     throw new Error(`enrichCompanyInfo: no company with id ${companyId}`);
   }
@@ -108,7 +108,8 @@ export async function enrichCompanyInfo(
   for (const field of FIRMOGRAPHIC_FIELDS) {
     const value = resolution[field];
     if (typeof value === "string" && value.length > 0) {
-      if ((field === "domain" || field === "linkedinUrl") && conflicts(field, value)) continue;
+      if ((field === "domain" || field === "linkedinUrl") && (await conflicts(field, value)))
+        continue;
       patch[field] = value;
     }
   }
@@ -121,13 +122,13 @@ export async function enrichCompanyInfo(
   }
 
   if (Object.keys(patch).length > 0) {
-    const updated = companies.update(companyId, patch);
+    const updated = await companies.update(companyId, patch);
     if (updated) Object.assign(company, updated);
   }
 
   // Advance new → enriched via promote-to-at-least: never regress a company that
   // is already further along, never touch a `passed` company.
-  const promoted = companies.promoteToAtLeast(companyId, "enriched");
+  const promoted = await companies.promoteToAtLeast(companyId, "enriched");
 
   return finish(promoted ?? company);
 
@@ -138,8 +139,8 @@ export async function enrichCompanyInfo(
   }
 
   /** Would writing this identity field collide with a *different* company row? */
-  function conflicts(field: "domain" | "linkedinUrl", value: string): boolean {
-    const other = companies.findByIdentity({ [field]: value });
+  async function conflicts(field: "domain" | "linkedinUrl", value: string): Promise<boolean> {
+    const other = await companies.findByIdentity({ [field]: value });
     if (other && other.id !== companyId) {
       notes.push(
         `${field} "${value}" already belongs to company #${other.id} (${other.name}); not writing it.`,

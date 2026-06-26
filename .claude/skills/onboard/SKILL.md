@@ -70,17 +70,28 @@ real answers. Cover:
 Write in plain language — no code, no JSON. `loadGoalProfile` re-reads these
 files on every run, so edits take effect immediately.
 
-### 3. Hand off to the rest of the toolkit
+### 3. Apply the taste, then hand off
 
-Once the profile is written, the ranking is now theirs. Point them on:
+Writing `preferences.md` sets the *criteria*; it does not yet change the ranking.
+A clean DB has **no company scores**, so the engine ranks **neutral** until you
+generate them. So the very next step is to **apply the taste**:
 
-- **`plan-conference`** (`pnpm conf-plan`) — the ranked ~8-company plan.
+- **`score-companies`** — read their preferences + each company's founder/funding/
+  domain signal, judge the taste sub-scores, and persist them (`pnpm score apply`).
+  *This is the bridge that makes the ranking actually theirs* — and because the
+  person scorer folds in company taste, it personalizes `who-to-meet` too.
+
+Then point them on:
+
+- **`plan-conference`** (`pnpm conf-plan`) — the ranked company plan, now by taste.
 - **`who-to-meet`** (`pnpm who-to-meet`) — a people-first hit list.
 - **`company-brief`** (`pnpm conf-brief <slug>`) — one company, deep + sourced.
 - **`draft-outreach`** — a personalized, copy-ready draft (never sends).
 - **`met-log`** (`pnpm conf-followup`) — log who you met, track outcomes.
 
-A good close: *"Your taste is set — run `/plan-conference` to see who to meet."*
+A good close: *"Taste captured — I'll run `score-companies` to apply it, then
+`/who-to-meet` shows who to meet."* (Without the scoring step the plan stays
+neutral.)
 
 ## Guardrails
 

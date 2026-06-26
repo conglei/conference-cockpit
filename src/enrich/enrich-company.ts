@@ -102,7 +102,7 @@ export async function enrichCompany(
   const searchProvider = opts.searchProvider ?? provider;
   const notes: string[] = [];
 
-  const company = companies.get(companyId);
+  const company = await companies.get(companyId);
   if (!company) {
     throw new Error(`enrichCompany: no company with id ${companyId}`);
   }
@@ -135,7 +135,7 @@ export async function enrichCompany(
     const key = r.emp.name.trim().toLowerCase();
     if (seenNames.has(key)) continue;
     seenNames.add(key);
-    enriched.push(persistFounder(people, company, r, baseDir, usedSlugs));
+    enriched.push(await persistFounder(people, company, r, baseDir, usedSlugs));
   }
 
   // 2b. WEB-SEARCH recovery rung (ADR-0003 §2): the normal roster yielded ZERO
@@ -155,7 +155,13 @@ export async function enrichCompany(
       seenNames.add(key);
       const emp: Employee = { name: f.name, title: f.title };
       enriched.push(
-        persistFounder(people, company, { emp, title: f.title, raw: undefined }, baseDir, usedSlugs),
+        await persistFounder(
+          people,
+          company,
+          { emp, title: f.title, raw: undefined },
+          baseDir,
+          usedSlugs,
+        ),
       );
     }
   }
@@ -164,7 +170,7 @@ export async function enrichCompany(
   // this company that this (corrected) pass no longer surfaces. Only untouched,
   // never-contacted enrichment rows are removed — anything the user has engaged
   // (outreach status / last contacted) or that's referenced elsewhere is kept.
-  pruneStaleFounders(people, company.id, new Set(enriched.map((e) => e.person.id)), notes);
+  await pruneStaleFounders(people, company.id, new Set(enriched.map((e) => e.person.id)), notes);
 
   // 3. Company deep-dive (references the founders we just resolved).
   const deepDivePath = join(baseDir, "companies", `${company.slug}.md`);
@@ -181,7 +187,7 @@ export async function enrichCompany(
 
   // 4. Persist company: deep_dive_path, this run's cost, advance new → enriched.
   const costUsd = Math.round(((opts.meter?.totalUsd() ?? 0) - costBefore) * 1e6) / 1e6;
-  const updated = companies.update(companyId, {
+  const updated = await companies.update(companyId, {
     deepDivePath,
     enrichmentCost: costUsd,
     status: company.status === "new" ? "enriched" : company.status,
@@ -312,17 +318,17 @@ function revealEmployee(emp: Employee, profile: Profile): Employee {
  * and a delete that the DB rejects (e.g. an application references the row) is
  * swallowed with a note rather than aborting the run.
  */
-function pruneStaleFounders(
+async function pruneStaleFounders(
   people: PersonRepo,
   companyId: number,
   keptIds: Set<number>,
   notes: string[],
-): void {
-  for (const p of people.listByCompany(companyId)) {
+): Promise<void> {
+  for (const p of await people.listByCompany(companyId)) {
     if (p.relationship !== "founder" || keptIds.has(p.id)) continue;
     if (p.outreachStatus !== "none" || p.lastContactedAt) continue;
     try {
-      people.remove(p.id);
+      await people.remove(p.id);
     } catch (err) {
       notes.push(`could not prune stale founder ${p.name} (#${p.id}): ${String(err)}`);
     }
@@ -394,33 +400,33 @@ async function webSearch(
 }
 
 /** Persist one resolved founder: upsert the row + write the deep-dive markdown. */
-function persistFounder(
+async function persistFounder(
   people: PersonRepo,
   company: Company,
   resolved: ResolvedFounder,
   baseDir: string,
   usedSlugs: Set<string>,
-): EnrichedPerson {
+): Promise<EnrichedPerson> {
   const { emp, title, raw } = resolved;
 
   // Upsert by LinkedIn URL (its natural identity); fall back to a fresh row.
-  const existing = emp.linkedinUrl ? people.getByLinkedinUrl(emp.linkedinUrl) : undefined;
+  const existing = emp.linkedinUrl ? await people.getByLinkedinUrl(emp.linkedinUrl) : undefined;
 
-  const slug = existing?.slug ?? uniqueSlug(emp.name, usedSlugs, people);
+  const slug = existing?.slug ?? (await uniqueSlug(emp.name, usedSlugs, people));
   usedSlugs.add(slug);
   const notesPath = join(baseDir, "people", `${slug}.md`);
 
   let person: Person;
   if (existing) {
     person =
-      people.update(existing.id, {
+      (await people.update(existing.id, {
         title: title ?? existing.title,
         companyId: existing.companyId ?? company.id,
         enrichmentBlob: raw !== undefined ? JSON.stringify(raw) : existing.enrichmentBlob,
         notesPath,
-      }) ?? existing;
+      })) ?? existing;
   } else {
-    person = people.create({
+    person = await people.create({
       slug,
       name: emp.name,
       companyId: company.id,
@@ -438,11 +444,11 @@ function persistFounder(
   return { person, notesPath };
 }
 
-function uniqueSlug(name: string, used: Set<string>, repo: PersonRepo): string {
+async function uniqueSlug(name: string, used: Set<string>, repo: PersonRepo): Promise<string> {
   const base = slugify(name) || "person";
   let candidate = base;
   let n = 2;
-  while (used.has(candidate) || repo.getBySlug(candidate)) {
+  while (used.has(candidate) || (await repo.getBySlug(candidate))) {
     candidate = `${base}-${n++}`;
   }
   return candidate;

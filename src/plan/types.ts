@@ -88,6 +88,8 @@ export interface PlannedPerson {
   /** URL slug for linking to the person's detail page. */
   slug: string;
   name: string;
+  /** Photo for the face-pile / card avatar (null ⇒ render initials). */
+  photoUrl: string | null;
   /** LinkedIn headline (falls back to the conference title). */
   headline: string | null;
   /** Employer as an attribute, not a gate. */

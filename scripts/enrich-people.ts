@@ -14,7 +14,7 @@
  * degrade gracefully with a note. Cost ~$0.0064/profile (HarvestAPI).
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createCompanyRepo } from "../src/db/repository";
 import { createProvider } from "../src/providers";
@@ -49,19 +49,20 @@ async function main() {
 
   const slugs = args;
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const people = createPersonRepo(db);
   const companies = createCompanyRepo(db);
 
   let targets = slugs.length
-    ? slugs.map((s) => people.getBySlug(s)).filter((p): p is NonNullable<typeof p> => Boolean(p))
-    : people.list();
+    ? (await Promise.all(slugs.map((s) => people.getBySlug(s)))).filter(
+        (p): p is NonNullable<typeof p> => Boolean(p),
+      )
+    : await people.list();
 
   // --vertical: keep only people whose company carries that vertical.
   if (vertical) {
     const ok = new Set(
-      companies
-        .list()
+      (await companies.list())
         .filter((co) => (co.verticals ?? "").toLowerCase().includes(vertical!.toLowerCase()))
         .map((co) => co.id),
     );

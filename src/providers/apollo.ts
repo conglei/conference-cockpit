@@ -85,7 +85,7 @@ export class ApolloProvider implements EnrichmentProvider {
     // Cache HIT: return the stored body without hitting the network or the meter
     // (cache hits are free). The key folds in method + URL + body.
     const ck = cacheKey(this.name, method, url.toString(), init.body);
-    const hit = this.cache.get(ck);
+    const hit = await this.cache.get(ck);
     if (hit) return JSON.parse(hit.response);
 
     let r: Response;
@@ -110,7 +110,7 @@ export class ApolloProvider implements EnrichmentProvider {
     }
     // MISS on a 2xx: store the raw text, bill the call, return the parsed JSON.
     const text = await readBody(r);
-    this.cache.set(ck, {
+    await this.cache.set(ck, {
       provider: this.name,
       request: ck,
       response: text,

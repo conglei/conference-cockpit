@@ -18,6 +18,7 @@
  */
 import type { Company, Person, Talk } from "../db/schema";
 import { personProvenance, type Provenance } from "../provenance";
+import { founderPedigree, has, workEntries } from "../scoring/pedigree";
 import type { GoalProfile, PlannedPerson, TalkSlot } from "./types";
 
 /** The user's background, for shared-employer/school warm paths (from resume). */
@@ -72,15 +73,7 @@ export interface RankPeopleOptions {
   speakingOnly?: boolean;
 }
 
-// --- pedigree vocabularies (lower-cased substring match on work_history) ---
-const TOP_LABS = ["openai", "deepmind", "google brain", "fair", "meta ai", "anthropic"];
-const BIG_TECH = [
-  "google", "meta", "facebook", "amazon", "aws", "microsoft", "apple", "nvidia",
-  "stripe", "airbnb", "uber", "netflix", "databricks", "salesforce", "tesla", "linkedin",
-];
-const RESEARCH = ["phd", "ph.d", "doctor of philosophy"];
-const RESEARCH_TITLE = ["professor", "research scientist", "phd"];
-const FOUNDER_EXEC = ["founder", "co-founder", "cofounder", "ceo", "cto", "chief"];
+// --- role-fit vocabularies (the founder-bar pedigree vocab lives in scoring/pedigree) ---
 const TECHNICAL = [
   "engineer", "engineering", "member of technical staff", "mts", "swe", "architect",
   "ml ", "ai ", "research", "developer", "infrastructure", "staff", "principal",
@@ -149,40 +142,9 @@ interface Scored {
   company: Company | undefined;
 }
 
-function has(hay: string | null | undefined, needles: string[]): string | undefined {
-  if (!hay) return undefined;
-  const h = hay.toLowerCase();
-  return needles.find((n) => h.includes(n));
-}
-
-/** Parsed work_history entries (lower-cased company + end label). */
-function workEntries(workHistory: string | null): Array<{ company: string; end: string }> {
-  if (!workHistory) return [];
-  try {
-    const arr = JSON.parse(workHistory) as Array<{ company?: string; end?: string }>;
-    return arr
-      .map((e) => ({ company: (e.company ?? "").toLowerCase(), end: (e.end ?? "").toLowerCase() }))
-      .filter((e) => e.company);
-  } catch {
-    return [];
-  }
-}
-
 /** All company names in the work history (for warm-path shared-employer match). */
 function workCompanies(workHistory: string | null): string[] {
   return workEntries(workHistory).map((e) => e.company);
-}
-
-/**
- * PAST employers only — excludes the current company and any still-current role
- * ("Present"). "ex-OpenAI" should never fire for someone *currently* at OpenAI.
- */
-function pastCompanies(workHistory: string | null, currentName: string): string {
-  const cur = currentName.toLowerCase();
-  return workEntries(workHistory)
-    .filter((e) => e.end !== "present" && !(cur && (e.company.includes(cur) || cur.includes(e.company))))
-    .map((e) => e.company)
-    .join(" | ");
 }
 
 function schoolNames(education: string | null): string[] {
@@ -222,29 +184,29 @@ export function scorePerson(
   const headline = person.headline ?? person.title ?? "";
   const currentName = person.currentCompany ?? company?.name ?? "";
 
-  // --- Pedigree (the founder-bar) — PAST employers only, never the current one ---
-  const past = pastCompanies(person.workHistory, currentName);
-  const lab = has(past, TOP_LABS);
-  const big = !lab && has(past, BIG_TECH);
-  if (lab) {
+  // --- Pedigree (the founder-bar) — shared primitive; PAST employers only ---
+  const ped = founderPedigree({
+    workHistory: person.workHistory,
+    education: person.education,
+    headline,
+    currentName,
+  });
+  if (ped.topLab) {
     score += o.wTopLab;
-    pedigree.push(`ex-${prettyOrg(lab)}`);
-    contributions.push(`ex-${prettyOrg(lab)}`);
-  } else if (big) {
+    contributions.push(`ex-${ped.topLab}`);
+  } else if (ped.bigTech) {
     score += o.wBigTech;
-    pedigree.push(`ex-${prettyOrg(big)}`);
-    contributions.push(`ex-${prettyOrg(big)}`);
+    contributions.push(`ex-${ped.bigTech}`);
   }
-  if (has(person.education, RESEARCH) || has(headline, RESEARCH_TITLE)) {
+  if (ped.research) {
     score += o.wResearch;
-    pedigree.push("PhD/research");
     contributions.push("PhD / research");
   }
-  if (has(headline, FOUNDER_EXEC) || has(person.workHistory, FOUNDER_EXEC)) {
+  if (ped.founderExec) {
     score += o.wFounderExec;
-    pedigree.push("founder/exec");
     contributions.push("founder/exec");
   }
+  pedigree.push(...ped.flags);
 
   // --- Role fit (Career Mover likes technical IC/leadership) ---
   if (has(headline, TECHNICAL)) score += o.wTechnical;
@@ -347,6 +309,7 @@ function shape(s: Scored, rank: number, now: Date): PlannedPerson {
     personId: s.person.id,
     slug: s.person.slug,
     name: s.person.name,
+    photoUrl: s.person.photoUrl ?? null,
     headline: s.person.headline ?? s.person.title,
     currentCompany: s.person.currentCompany ?? s.company?.name ?? null,
     companyId: s.person.companyId,
@@ -397,21 +360,5 @@ function parseVerticals(company: Company | undefined): string[] {
   }
 }
 
-/** Proper-cased labels for the pedigree orgs (acronyms/camelCase done right). */
-const ORG_LABELS: Record<string, string> = {
-  openai: "OpenAI", deepmind: "DeepMind", "google brain": "Google Brain", fair: "FAIR",
-  "meta ai": "Meta AI", anthropic: "Anthropic", google: "Google", meta: "Meta",
-  facebook: "Meta", amazon: "Amazon", aws: "AWS", microsoft: "Microsoft", apple: "Apple",
-  nvidia: "Nvidia", stripe: "Stripe", airbnb: "Airbnb", uber: "Uber", netflix: "Netflix",
-  databricks: "Databricks", salesforce: "Salesforce", tesla: "Tesla", linkedin: "LinkedIn",
-};
-const prettyOrg = (token: string): string => ORG_LABELS[token] ?? titleCase(token);
-
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
-function titleCase(s: string): string {
-  return s
-    .split(" ")
-    .map((w) => (w === "ai" ? "AI" : cap(w)))
-    .join(" ");
-}

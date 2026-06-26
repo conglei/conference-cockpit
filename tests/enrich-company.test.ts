@@ -25,8 +25,8 @@ describe("enrichCompany (offline, FakeProvider)", () => {
   let baseDir: string;
   const provider = new FakeProvider();
 
-  beforeEach(() => {
-    const db = createTestDb();
+  beforeEach(async () => {
+    const db = await createTestDb();
     companies = createCompanyRepo(db);
     people = createPersonRepo(db);
     baseDir = mkdtempSync(join(tmpdir(), "enrich-"));
@@ -48,7 +48,7 @@ describe("enrichCompany (offline, FakeProvider)", () => {
   }
 
   it("writes the company deep-dive and founder deep-dives to the base dir", async () => {
-    const c = makeGiga();
+    const c = await makeGiga();
     const r = await enrichCompany({ companies, people, provider }, c.id, { baseDir });
 
     const companyMd = join(baseDir, "companies", "giga.md");
@@ -65,10 +65,10 @@ describe("enrichCompany (offline, FakeProvider)", () => {
   });
 
   it("creates founder people rows linked to the company with notes_path set", async () => {
-    const c = makeGiga();
+    const c = await makeGiga();
     await enrichCompany({ companies, people, provider }, c.id, { baseDir });
 
-    const rows = people.list({ companyId: c.id });
+    const rows = await people.list({ companyId: c.id });
     expect(rows.length).toBeGreaterThanOrEqual(1);
 
     const jane = rows.find((p) => p.name === "Jane Founder");
@@ -83,7 +83,7 @@ describe("enrichCompany (offline, FakeProvider)", () => {
   });
 
   it("advances the company new → enriched and sets deep_dive_path", async () => {
-    const c = makeGiga();
+    const c = await makeGiga();
     expect(c.status).toBe("new");
     const r = await enrichCompany({ companies, people, provider }, c.id, { baseDir });
 
@@ -91,7 +91,7 @@ describe("enrichCompany (offline, FakeProvider)", () => {
     expect(r.company.deepDivePath).toBe(join(baseDir, "companies", "giga.md"));
 
     // persisted, not just returned
-    const reloaded = companies.getBySlug("giga");
+    const reloaded = await companies.getBySlug("giga");
     expect(reloaded?.status).toBe("enriched");
     expect(reloaded?.deepDivePath).toBe(r.company.deepDivePath);
   });
@@ -109,7 +109,7 @@ describe("enrichCompany (offline, FakeProvider)", () => {
         ],
       },
     });
-    const c = makeGiga();
+    const c = await makeGiga();
     await enrichCompany({ companies, people, provider: p }, c.id, { baseDir });
 
     const md = readFileSync(join(baseDir, "companies", "giga.md"), "utf8");
@@ -117,11 +117,11 @@ describe("enrichCompany (offline, FakeProvider)", () => {
   });
 
   it("is idempotent: re-enriching does not duplicate founder rows", async () => {
-    const c = makeGiga();
+    const c = await makeGiga();
     await enrichCompany({ companies, people, provider }, c.id, { baseDir });
-    const first = people.list({ companyId: c.id }).length;
+    const first = (await people.list({ companyId: c.id })).length;
     await enrichCompany({ companies, people, provider }, c.id, { baseDir });
-    const second = people.list({ companyId: c.id }).length;
+    const second = (await people.list({ companyId: c.id })).length;
     expect(second).toBe(first);
   });
 
@@ -153,7 +153,7 @@ describe("enrichCompany (offline, FakeProvider)", () => {
       },
     };
 
-    const c = companies.create({
+    const c = await companies.create({
       slug: "letta",
       name: "Letta",
       domain: "letta.com",
@@ -206,7 +206,7 @@ describe("enrichCompany (offline, FakeProvider)", () => {
       },
     };
 
-    const c = companies.create({
+    const c = await companies.create({
       slug: "rosterco",
       name: "RosterCo",
       domain: "rosterco.com",
@@ -218,7 +218,7 @@ describe("enrichCompany (offline, FakeProvider)", () => {
     expect(names).toEqual(["Charles Packer"]);
     expect(names).not.toContain("Information Security");
 
-    const rows = people.list({ companyId: c.id });
+    const rows = await people.list({ companyId: c.id });
     expect(rows.find((p) => p.name === "Information Security")).toBeUndefined();
 
     expect(r.notes.join(" ")).toContain("Information Security");
@@ -226,7 +226,7 @@ describe("enrichCompany (offline, FakeProvider)", () => {
   });
 
   it("degrades gracefully when the company has no linkedin_url", async () => {
-    const c = companies.create({ slug: "ghost", name: "Ghost", status: "new" });
+    const c = await companies.create({ slug: "ghost", name: "Ghost", status: "new" });
     const r = await enrichCompany({ companies, people, provider }, c.id, { baseDir });
 
     // Company deep-dive still written + status advanced, but no people found.

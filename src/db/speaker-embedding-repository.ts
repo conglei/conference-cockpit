@@ -12,7 +12,7 @@ export type SpeakerEmbeddingInput = Omit<NewSpeakerEmbedding, "id" | "createdAt"
  */
 export function createSpeakerEmbeddingRepo(db: DB) {
   return {
-    upsertByExternalId(input: SpeakerEmbeddingInput): SpeakerEmbedding {
+    async upsertByExternalId(input: SpeakerEmbeddingInput): Promise<SpeakerEmbedding> {
       const ts = Date.now();
       return db
         .insert(speakerEmbeddings)
@@ -34,11 +34,11 @@ export function createSpeakerEmbeddingRepo(db: DB) {
         .get();
     },
 
-    list(): SpeakerEmbedding[] {
+    async list(): Promise<SpeakerEmbedding[]> {
       return db.select().from(speakerEmbeddings).all();
     },
 
-    byExternalId(externalId: string): SpeakerEmbedding | undefined {
+    async byExternalId(externalId: string): Promise<SpeakerEmbedding | undefined> {
       return db
         .select()
         .from(speakerEmbeddings)
@@ -46,8 +46,8 @@ export function createSpeakerEmbeddingRepo(db: DB) {
         .get();
     },
 
-    count(): number {
-      return db.select().from(speakerEmbeddings).all().length;
+    async count(): Promise<number> {
+      return (await db.select().from(speakerEmbeddings).all()).length;
     },
   };
 }

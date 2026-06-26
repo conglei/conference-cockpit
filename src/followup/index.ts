@@ -30,12 +30,12 @@ export interface LogMetInput {
  * stamps last_contacted_at (meeting in person IS a real touch). Never regresses
  * a person already further along the funnel (drafted/contacted/replied).
  */
-export function logMet(
+export async function logMet(
   repos: { people: PersonRepo },
   input: LogMetInput,
   now: () => number = Date.now,
-): Person {
-  const existing = repos.people.get(input.personId);
+): Promise<Person> {
+  const existing = await repos.people.get(input.personId);
   if (!existing) throw new Error(`logMet: no person with id ${input.personId}`);
 
   // Don't regress someone you've already drafted/contacted/replied with.
@@ -45,7 +45,7 @@ export function logMet(
     : "met";
 
   const note = input.note ? input.note.trim() : undefined;
-  const person = repos.people.update(input.personId, {
+  const person = await repos.people.update(input.personId, {
     outreachStatus: status,
     lastContactedAt: now(),
     nextAction: input.nextAction ?? existing.nextAction ?? "send follow-up",
@@ -64,15 +64,15 @@ export function logMet(
  * contacted them, you've flagged them to meet. Never regresses anyone already
  * met / further along. Pass `clear` to un-save (back to 'none').
  */
-export function logTarget(
+export async function logTarget(
   repos: { people: PersonRepo },
   input: { personId: number; note?: string; clear?: boolean },
-): Person {
-  const existing = repos.people.get(input.personId);
+): Promise<Person> {
+  const existing = await repos.people.get(input.personId);
   if (!existing) throw new Error(`logTarget: no person with id ${input.personId}`);
 
   if (input.clear) {
-    const cleared = repos.people.update(input.personId, {
+    const cleared = await repos.people.update(input.personId, {
       outreachStatus: existing.outreachStatus === "targeted" ? "none" : existing.outreachStatus,
     });
     if (!cleared) throw new Error(`logTarget: failed to update person ${input.personId}`);
@@ -82,7 +82,7 @@ export function logTarget(
   // Only "none" can move up to "targeted"; never pull a met/contacted person back.
   if (existing.outreachStatus !== "none") return existing;
   const note = input.note ? input.note.trim() : undefined;
-  const person = repos.people.update(input.personId, {
+  const person = await repos.people.update(input.personId, {
     outreachStatus: "targeted",
     nextAction: note ? `meet at AIE — ${note}` : (existing.nextAction ?? "meet at AIE"),
   });
@@ -104,24 +104,25 @@ const OPEN_FOLLOWUP = new Set(["targeted", "met", "drafted", "contacted"]);
  * The follow-up queue: everyone you've met (or started contacting) who still
  * owes an action, newest-touched first, each with a draft suggestion.
  */
-export function followupQueue(
+export async function followupQueue(
   repos: { people: PersonRepo; companies: CompanyRepo },
   opts: { profileSummary?: string } = {},
-): FollowupItem[] {
-  return repos.people
-    .list()
+): Promise<FollowupItem[]> {
+  const people = (await repos.people.list())
     .filter((p) => OPEN_FOLLOWUP.has(p.outreachStatus))
-    .sort((a, b) => (b.lastContactedAt ?? 0) - (a.lastContactedAt ?? 0))
-    .map((person) => {
+    .sort((a, b) => (b.lastContactedAt ?? 0) - (a.lastContactedAt ?? 0));
+  return Promise.all(
+    people.map(async (person) => {
       const companyName = person.companyId
-        ? (repos.companies.get(person.companyId)?.name ?? null)
+        ? ((await repos.companies.get(person.companyId))?.name ?? null)
         : null;
       return {
         person,
         companyName,
         draft: draftFollowup({ person, companyName, profileSummary: opts.profileSummary }),
       };
-    });
+    }),
+  );
 }
 
 /** A plain, clearly-a-draft follow-up message. Draft only — never sent. */

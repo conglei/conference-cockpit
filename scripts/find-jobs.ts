@@ -24,7 +24,7 @@
  * keys degrade gracefully with an actionable note.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo, createRoleRepo } from "../src/db/repository";
 import { COMPANY_STATUS } from "../src/db/schema";
 import { detectAts } from "../src/providers/ats";
@@ -66,7 +66,7 @@ async function main() {
     args.splice(funnelFlag, 1);
   }
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const companies = createCompanyRepo(db);
   const roles = createRoleRepo(db);
 
@@ -81,7 +81,7 @@ async function main() {
     let targets;
     let query: string | undefined;
     if (funnel) {
-      targets = companies.list().filter((c) => FUNNEL_STATUSES.has(c.status));
+      targets = (await companies.list()).filter((c) => FUNNEL_STATUSES.has(c.status));
       query = args.join(" ").trim() || undefined;
     } else {
       const slug = args[0];
@@ -91,7 +91,7 @@ async function main() {
         );
         process.exit(1);
       }
-      const company = companies.getBySlug(slug);
+      const company = await companies.getBySlug(slug);
       if (!company) {
         console.error(`No company found for slug: ${slug}.`);
         process.exit(1);
@@ -183,7 +183,7 @@ async function main() {
     console.log(`+ company  ${c.name} (#${c.id}) [new/google_jobs]`);
   }
   for (const role of r.inserted) {
-    const company = companies.get(role.companyId);
+    const company = await companies.get(role.companyId);
     console.log(`+ role     ${role.title} @ ${company?.name ?? "?"} (#${role.id})`);
   }
   for (const dup of r.duplicates) {

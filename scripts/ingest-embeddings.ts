@@ -9,7 +9,7 @@
  */
 import { readFileSync } from "node:fs";
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createSpeakerEmbeddingRepo } from "../src/db/speaker-embedding-repository";
 import { ingestEmbeddings, type EmbeddingsFeed } from "../src/speakers/ingest-embeddings";
@@ -28,8 +28,8 @@ async function load(src: string): Promise<EmbeddingsFeed> {
 async function main() {
   const src = process.argv[2] ?? DEFAULT_SRC;
   const feed = await load(src);
-  const db = createDb(DB_URL);
-  const res = ingestEmbeddings(
+  const db = createDb();
+  const res = await ingestEmbeddings(
     { people: createPersonRepo(db), embeddings: createSpeakerEmbeddingRepo(db) },
     feed,
   );

@@ -1,4 +1,4 @@
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo, type CompanyInput } from "../src/db/repository";
 
 // A handful of real companies so the stack is demoable end-to-end.
@@ -59,7 +59,7 @@ const fixtures: CompanyInput[] = [
   },
 ];
 
-const repo = createCompanyRepo(createDb(DB_URL));
+const repo = createCompanyRepo(createDb());
 
 let created = 0;
 for (const f of fixtures) {

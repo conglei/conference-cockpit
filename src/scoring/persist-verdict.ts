@@ -33,12 +33,12 @@ export interface PersistVerdictOptions {
  * so there is no second write path to keep in sync. Returns the updated row (or
  * `undefined` if the id no longer exists).
  */
-export function persistVerdict(
+export async function persistVerdict(
   repo: CompanyRepo,
   companyId: number,
   result: ScoreResult,
   opts: PersistVerdictOptions = {},
-): Company | undefined {
+): Promise<Company | undefined> {
   const weights = opts.weights ?? DEFAULT_WEIGHTS;
   const now = opts.now ?? Date.now();
 

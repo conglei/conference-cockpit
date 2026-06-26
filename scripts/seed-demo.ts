@@ -8,36 +8,58 @@
  *   pnpm seed-demo            # into DATABASE_URL (or data/conference.db)
  *   pnpm seed-demo --force    # wipe + reseed even if rows exist
  */
-import Database from "better-sqlite3";
+import { createClient, type Client, type InValue } from "@libsql/client";
+import { mkdirSync } from "node:fs";
 import { readFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { ensureDb } from "../src/onboarding/ensure-db";
-import { DB_URL } from "../src/db/client";
+import { loadEnvFile } from "../src/onboarding/load-env";
+import { resolveDbUrl } from "../src/db/client";
+
+// Honor a configured DATABASE_URL (e.g. Turso) from .env.local — otherwise seed
+// only ever targets the local file fallback.
+loadEnvFile();
 
 const TABLES = ["companies", "people", "talks", "roles"] as const;
 
-function insertAll(db: Database.Database, table: string, rows: Record<string, unknown>[]) {
+/** Mirror the driver's URL mapping so bare paths become file: URLs. */
+function toLibsqlUrl(url: string): string {
+  if (url === ":memory:") return ":memory:";
+  if (/^(file|libsql|https?|wss?):/.test(url)) return url;
+  mkdirSync(dirname(url), { recursive: true });
+  return `file:${url}`;
+}
+
+async function insertAll(
+  client: Client,
+  table: string,
+  rows: Record<string, unknown>[],
+): Promise<number> {
   if (!rows.length) return 0;
   const cols = Object.keys(rows[0]);
-  const stmt = db.prepare(
-    `INSERT INTO ${table} (${cols.map((c) => `"${c}"`).join(",")}) VALUES (${cols.map(() => "?").join(",")})`,
-  );
-  const tx = db.transaction((rs: Record<string, unknown>[]) => {
-    for (const r of rs) stmt.run(cols.map((c) => r[c] ?? null));
-  });
-  tx(rows);
+  const sql = `INSERT INTO ${table} (${cols.map((c) => `"${c}"`).join(",")}) VALUES (${cols.map(() => "?").join(",")})`;
+  const stmts = rows.map((r) => ({
+    sql,
+    args: cols.map((c) => (r[c] ?? null) as InValue),
+  }));
+  await client.batch(stmts, "write");
   return rows.length;
 }
 
-function main() {
+async function main() {
   const force = process.argv.includes("--force");
-  const url = DB_URL;
+  const url = resolveDbUrl();
 
-  // Schema first (idempotent), then a raw handle for fast bulk insert.
-  ensureDb(url);
-  const db = new Database(url);
-  db.pragma("foreign_keys = ON");
+  // Schema first (idempotent), then a raw client for fast bulk insert.
+  await ensureDb(url);
+  const client = createClient({
+    url: toLibsqlUrl(url),
+    authToken: process.env.TURSO_AUTH_TOKEN ?? process.env.LIBSQL_AUTH_TOKEN,
+  });
 
-  const existing = (db.prepare("SELECT COUNT(*) n FROM companies").get() as { n: number }).n;
+  const existing = Number(
+    (await client.execute("SELECT COUNT(*) n FROM companies")).rows[0].n,
+  );
   if (existing > 0) {
     if (!force) {
       console.error(
@@ -45,7 +67,17 @@ function main() {
       );
       process.exit(1);
     }
-    db.exec("PRAGMA foreign_keys=OFF; DELETE FROM roles; DELETE FROM talks; DELETE FROM people; DELETE FROM companies; PRAGMA foreign_keys=ON;");
+    await client.batch(
+      [
+        "PRAGMA foreign_keys=OFF",
+        "DELETE FROM roles",
+        "DELETE FROM talks",
+        "DELETE FROM people",
+        "DELETE FROM companies",
+        "PRAGMA foreign_keys=ON",
+      ],
+      "write",
+    );
   }
 
   const snap = JSON.parse(readFileSync("seed/demo-snapshot.json", "utf8")) as Record<
@@ -53,13 +85,13 @@ function main() {
     Record<string, unknown>[]
   >;
   const counts: Record<string, number> = {};
-  for (const t of TABLES) counts[t] = insertAll(db, t, snap[t] ?? []);
+  for (const t of TABLES) counts[t] = await insertAll(client, t, snap[t] ?? []);
 
   console.log(
     `Seeded ${url} from demo snapshot — ` +
       TABLES.map((t) => `${counts[t]} ${t}`).join(", "),
   );
-  db.close();
+  client.close();
 }
 
-main();
+await main();
