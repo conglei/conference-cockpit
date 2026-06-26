@@ -97,7 +97,7 @@ export default async function SessionsPage() {
     <main className="sessions-main">
       <h1>Sessions</h1>
       <p className="subtitle">
-        {rows.length} talks · Jun 29 – Jul 2, 2026 — browse the agenda, jump to
+        {rows.length} sessions · Jun 29 – Jul 2, 2026 — browse the agenda, jump to
         what&apos;s on now.
       </p>
 
