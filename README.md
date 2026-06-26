@@ -16,7 +16,8 @@ opener — in the time it takes to ask.
 It's **open source**, **agent-native** (a set of Claude Code skills over a small
 engine, not a walled app), and **forkable for any conference**. Built on a real
 dataset: AI Engineer World's Fair 2026 — ~297 companies with funding + founders,
-~488 speakers with bios + photos, ~552 talks, ~2,373 open roles.
+~488 speakers with bios + photos, ~552 talks, ~4,640 open roles pulled live from
+company ATS boards.
 
 <img width="2682" height="2132" alt="demo" src="https://github.com/user-attachments/assets/37660f6f-3a68-4444-86ad-cd47d9264b08" />
 
@@ -111,6 +112,10 @@ web app for a public URL.
 2. **[Shared cloud DB](#2-shared-cloud-db-turso)** — the agent + the web on one Turso DB.
 3. **[Deploy online](#3-deploy-the-web-app-online)** — a public URL, optionally password-protected.
 
+> **Don't want to read this?** Ask Claude Code to run the
+> [`setup`](.claude/skills/setup/SKILL.md) skill — it asks which of the three you
+> want and runs every step for you, ending by pointing you at `onboard`.
+
 ### 1. Local (no keys, no cloud)
 
 ```bash
@@ -127,7 +132,8 @@ the ranking reflects your taste), then **`who-to-meet`** — see [the skills](#u
 > **The data is already in the repo.** The committed snapshot
 > ([`seed/demo-snapshot.json`](seed/)) is the *complete* conference graph — all
 > **~297 companies**, **~488 speakers** (with bios + photos), **~552 talks**, and
-> **~2,373 open roles**. `pnpm seed-demo` loads every bit of it into a local
+> **~4,640 open roles** (live from company ATS boards + careers pages). `pnpm
+> seed-demo` loads every bit of it into a local
 > libSQL/SQLite DB in seconds. You do **not** run any enrichment to use the demo.
 
 **On the data layout:** the working databases (`data/*.db`) are **gitignored**,
@@ -205,25 +211,46 @@ allowlist `*.turso.io` for egress. The agent edits the graph; your `pnpm dev`
 ### 3. Deploy the web app online
 
 The web app is **server-rendered** — every data page is `force-dynamic` and reads
-Turso at request time — so deploy it as a **Node web service, not a static site**.
-Two things make this simple: the build needs **no secrets** (dynamic pages render
-per-request, never at build), and the app only ever **reads** the DB (saving and
-met-logging happen through the agent), so it runs on a **read-only** Turso token.
-There is no separate API service — the Next.js server *is* the backend.
+Turso at request time — so deploy it as a **Node serverless app, not a static
+site**. Two things make this simple: the build needs **no secrets** (dynamic pages
+render per-request, never at build), and the app only ever **reads** the DB (saving
+and met-logging happen through the agent), so it runs on a **read-only** Turso
+token. There is no separate API service — the Next.js server *is* the backend.
 
-**Render (Blueprint).** A [`render.yaml`](render.yaml) is included.
+> **Fastest path: ask Claude Code to run the [`setup`](.claude/skills/setup/SKILL.md)
+> skill.** It interviews you for the target (local / shared DB / online) and runs
+> every step below for you. The manual commands follow if you'd rather drive.
+
+**Vercel (recommended).** Next.js's native host, and the path the `setup` skill
+automates. A committed [`vercel.json`](vercel.json) pins the serverless region
+near the DB (`pdx1` ≈ `aws-us-west-2`) — every page hits Turso per request, so
+co-locating cuts latency. Uses `npx vercel`, no global install:
 
 1. Create a read-only DB token: `turso db tokens create <your-db> --read-only`.
-2. Render Dashboard → **New → Blueprint** → pick this repo. It provisions a Node
-   web service (`pnpm build` → `pnpm start`); pick a region near your DB
-   (e.g. **Oregon** for `aws-us-west-2`).
-3. Set the runtime env vars (marked `sync: false`, entered in the dashboard,
-   never committed): `DATABASE_URL` = `libsql://<your-db>.turso.io` and
-   `TURSO_AUTH_TOKEN` = the **read-only** token.
+2. Link the repo: `npx vercel link --yes` (connects GitHub for auto-deploys).
+3. Push **only** the two web vars to Production + Preview — *not* the enrichment
+   keys (those are agent-side). Pipe via stdin so secrets never hit the log:
+   ```bash
+   for t in production preview; do
+     printf '%s' 'libsql://<your-db>.turso.io' | npx vercel env add DATABASE_URL "$t"
+     printf '%s' '<read-only token>'           | npx vercel env add TURSO_AUTH_TOKEN "$t"
+   done
+   ```
+4. Deploy: `npx vercel --prod --yes`. Future `git push` to the linked branch
+   auto-deploys.
 
-**Any Node host works** — it's a stock Next.js app. Vercel is zero-config (import
-the repo, set the same env vars); Fly.io / Railway / a container run `pnpm build`
-then `pnpm start`.
+> **Don't add `runtime = "edge"` to a page** — `@libsql/client` is a Node native
+> module and needs the default Node serverless runtime (already handled via
+> `serverExternalPackages` in [`next.config.ts`](next.config.ts)).
+
+**Render (Blueprint), alternative.** A [`render.yaml`](render.yaml) is included.
+Render Dashboard → **New → Blueprint** → pick this repo; it provisions a Node web
+service (`pnpm build` → `pnpm start`). Pick a region near your DB (**Oregon** for
+`aws-us-west-2`) and set `DATABASE_URL` + the read-only `TURSO_AUTH_TOKEN` (marked
+`sync: false`, entered in the dashboard, never committed).
+
+**Any Node host works** — it's a stock Next.js app. Fly.io / Railway / a container
+run `pnpm build` then `pnpm start`.
 
 #### Keep it private (optional)
 
@@ -245,8 +272,28 @@ Engineer World's Fair 2026** program. On top of that, an enrichment pass fills i
 
 - **Companies** — firmographics + funding + founders (via Apollo).
 - **People** — LinkedIn-style public profile (work history, education, headline, bio).
-- **Open roles** — per company, **except job listings for the largest employers**
-  (e.g. Google) — those were skipped this round.
+- **Open roles** — pulled **live from each company's own hiring source**, newest
+  first, not a stale job aggregator:
+  - **ATS boards** (Ashby · Greenhouse · Lever · Workable) are the primary source —
+    the company's public job board, discovered from its existing role URLs, a token
+    probe, or an **agent-judged web search**. Every discovered board is
+    **identity-checked** against the company so a same-name board can't be
+    mis-attached (a search for "Daytona" once returned a *bakery's* 1,477 retail
+    roles — guarded out). For a company with no public ATS board, we fall back to
+    **LinkedIn** (HarvestAPI) and finally its **careers page**.
+  - **What's filtered, and why** (so the list is signal, not every job a company has):
+    - **Big employers contribute engineering + product roles only.** A board with
+      **more than 60** open roles (a scaled employer) is narrowed to its
+      engineering + product positions — sales, marketing, ops, recruiting, finance,
+      etc. are dropped. A smaller company (≤ 60 roles) keeps **every** function.
+    - **Capped at 80 newest roles per company**, so no single large employer floods
+      the explorer.
+    - **Scaled enterprises** (Google, Microsoft, Oracle, Amazon…) are **excluded**
+      from the LinkedIn/careers passes entirely — the taste is early/mid-stage,
+      founder-bar companies, not big-tech.
+    - Explicitly **junior** postings (intern, new-grad, "junior", co-op) are dropped.
+  - Result: **~167 of 297** companies carry fresh openings; the rest are VCs,
+    universities, or startups with no public openings right now.
 
 It's a **point-in-time snapshot**: every enriched field carries a `source · as of`
 chip, and a thin/unverifiable signal is labeled, not dressed up. No private data,
