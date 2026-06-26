@@ -131,9 +131,7 @@ the ranking reflects your taste), then **`who-to-meet`** — see [the skills](#u
 > ([`seed/demo-snapshot.json`](seed/)) is the *complete* conference graph — all
 > **~297 companies**, **~488 speakers** (with bios + photos), **~552 talks**, and
 > **~2,373 open roles**. `pnpm seed-demo` loads every bit of it into a local
-> libSQL/SQLite DB in seconds. You do **not** run any enrichment to use the
-> demo — that pipeline is only for [bringing your own
-> conference](#bring-your-own-conference-optional).
+> libSQL/SQLite DB in seconds. You do **not** run any enrichment to use the demo.
 
 **On the data layout:** the working databases (`data/*.db`) are **gitignored**,
 not committed — `seed-demo` rebuilds `data/conference.db` from the snapshot, so a
@@ -166,10 +164,21 @@ preferences and persists the scores, which flips ranking from neutral to yours
 (and, because the person scorer folds in company taste, personalizes
 **who-to-meet** too). No code, no keys; `profile/` is gitignored and never committed.
 
-Under the hood, the agent reads the graph through a **scoped, read-only** layer
-(not MCP, not raw SQL — [ADR-0005](docs/adr/0005-agent-query-cli.md)): compact,
-capped reads that *cannot* mutate data. Writes are deliberately narrow (save to
-your list, log an encounter) and there is **no send path** — drafts only.
+### Why the agent talks to the DB directly (and the caveat)
+
+We deliberately **did not** put an MCP server in front of the data. For this
+workload MCP added protocol overhead without earning it — and, more importantly,
+it's worse for **context management**: round-tripping rows through a tool boundary
+bloats the agent's context fast. So the agent reads the graph directly, through a
+**scoped, read-only** layer (not MCP, not raw SQL —
+[ADR-0005](docs/adr/0005-agent-query-cli.md)): compact, capped reads that *cannot*
+mutate data, with writes confined to narrow verbs (save to your list, log an
+encounter) and **no send path** — drafts only.
+
+The honest trade-off: this **exposes the database to the agent**. It's not the
+most locked-down design. We keep it safe-by-default (read-only handle, projected
++ capped reads, no general write/delete surface), but if you point this at
+sensitive or private data, **use it at your own risk**.
 
 ### 2. Shared cloud DB (Turso)
 
@@ -228,38 +237,6 @@ then challenges every request before any page renders. Leave it unset and the si
 is open. It protects the **web UI only** — the agent reads the DB directly, not
 through the app — so always serve over HTTPS (Render/Vercel do). For more than a
 shared password, front it with Cloudflare Access or your host's own auth.
-
-### Bring your own conference (optional)
-
-> Everything below is **only** for pointing Compass at a *different* conference.
-> To run the AIE 2026 demo you can **skip this entirely** — the data is already
-> seeded.
-
-The schema is conference-agnostic. Ingest a new event by importing its companies
-([`pnpm import-csv`](scripts/import-csv.ts)) and its agenda
-([`pnpm ingest-talks <agenda.json>`](scripts/ingest-talks.ts), shaped like
-[`seed/aie-wf-2026.json`](seed/)), then enrich + score with the CLIs below.
-
-#### Enrich for search & query
-
-The conference graph is sharpened by a few idempotent passes (safe to re-run).
-These need API keys (`cp .env.example .env.local`) and are **not** required for
-the demo:
-
-```bash
-pnpm backfill-from-cache   # replay cached Apollo org-enrich into companies
-                           # (industry, keywords, location, founded, headcount) — zero API spend
-pnpm ingest-speakers       # speaker bios + photos onto people rows
-pnpm enrich-people         # deep per-person LinkedIn profile (work history, education,
-                           # headline, about) — ~$0.0064/person, cached on re-run
-pnpm roll-up-verticals     # company.verticals from speakers' talk tracks (e.g. "AI in Healthcare")
-pnpm ingest-embeddings     # per-speaker vectors for semantic search
-pnpm similar-speakers "<name>"   # "find speakers like this one" (offline, no embedding API)
-```
-
-`pnpm backfill-from-cache`/`ingest-speakers`/`ingest-embeddings` default to the
-live AIE feeds but accept a local snapshot path; nothing is overwritten with a
-blank, so re-running only fills gaps.
 
 ---
 
