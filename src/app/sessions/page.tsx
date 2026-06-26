@@ -48,26 +48,42 @@ export default async function SessionsPage() {
       .map((c) => [c.id, c] as const),
   );
 
-  const rows: SessionRow[] = talks.map((t) => {
-    const [startRaw, endRaw] = (t.time ?? "").split(/[-–]/).map((s) => s.trim());
+  // Talks are stored one row per speaker, so a co-presented talk shows up as
+  // several rows. Collapse rows that share the same slot+title into ONE session
+  // with a merged speakers[] (and companies[], since panels can be cross-company).
+  // The key includes time+room so a workshop that genuinely repeats stays split.
+  const byKey = new Map<string, SessionRow>();
+  for (const t of talks) {
+    const day = t.day ?? "Unscheduled";
+    const key = `${day}|${t.time ?? ""}|${t.room ?? ""}|${t.title}`;
+    let s = byKey.get(key);
+    if (!s) {
+      const [startRaw, endRaw] = (t.time ?? "").split(/[-–]/).map((x) => x.trim());
+      s = {
+        id: t.id,
+        title: t.title,
+        day,
+        date: t.day ? dateForDay(t.day) : null,
+        time: t.time ?? null,
+        startMin: toMinutes(startRaw),
+        endMin: toMinutes(endRaw),
+        room: t.room ?? null,
+        track: t.track ?? null,
+        speakers: [],
+        companies: [],
+      };
+      byKey.set(key, s);
+    }
     const speaker = t.speakerId != null ? people.get(t.speakerId) : undefined;
+    if (speaker && !s.speakers.some((x) => x.slug === speaker.slug)) {
+      s.speakers.push({ name: speaker.name, slug: speaker.slug });
+    }
     const company = t.companyId != null ? companies.get(t.companyId) : undefined;
-    return {
-      id: t.id,
-      title: t.title,
-      day: t.day ?? "Unscheduled",
-      date: t.day ? dateForDay(t.day) : null,
-      time: t.time ?? null,
-      startMin: toMinutes(startRaw),
-      endMin: toMinutes(endRaw),
-      room: t.room ?? null,
-      track: t.track ?? null,
-      speakerName: speaker?.name ?? null,
-      speakerSlug: speaker?.slug ?? null,
-      companyName: company?.name ?? null,
-      companySlug: company?.slug ?? null,
-    };
-  });
+    if (company && !s.companies.some((x) => x.slug === company.slug)) {
+      s.companies.push({ name: company.name, slug: company.slug });
+    }
+  }
+  const rows: SessionRow[] = [...byKey.values()];
 
   // Stable order: by day, then start time, then title.
   rows.sort(

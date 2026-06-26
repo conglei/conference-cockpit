@@ -13,10 +13,8 @@ export type SessionRow = {
   endMin: number | null;
   room: string | null;
   track: string | null;
-  speakerName: string | null;
-  speakerSlug: string | null;
-  companyName: string | null;
-  companySlug: string | null;
+  speakers: { name: string; slug: string }[];
+  companies: { name: string; slug: string }[];
 };
 
 /** Short label for a day pill: "Day 2" from "Day 2 — Session Day 1". */
@@ -102,7 +100,9 @@ export default function SessionsExplorer({
       if (day && s.day !== day) return false;
       if (track !== "all" && s.track !== track) return false;
       if (needle) {
-        const hay = `${s.title} ${s.speakerName ?? ""} ${s.companyName ?? ""} ${s.track ?? ""}`.toLowerCase();
+        const hay = `${s.title} ${s.speakers.map((p) => p.name).join(" ")} ${s.companies
+          .map((c) => c.name)
+          .join(" ")} ${s.track ?? ""}`.toLowerCase();
         if (!hay.includes(needle)) return false;
       }
       return true;
@@ -214,20 +214,23 @@ export default function SessionsExplorer({
                 <div className="session-body">
                   <h3 className="session-title">{s.title}</h3>
                   <div className="session-meta">
-                    {s.speakerSlug ? (
-                      <a className="session-speaker" href={`/people/${s.speakerSlug}`}>
-                        {s.speakerName}
-                      </a>
-                    ) : s.speakerName ? (
-                      <span className="session-speaker">{s.speakerName}</span>
+                    {s.speakers.length ? (
+                      <span className="session-speakers">
+                        {s.speakers.map((p, i) => (
+                          <span key={p.slug}>
+                            {i > 0 ? <span className="session-sep">, </span> : null}
+                            <a className="session-speaker" href={`/people/${p.slug}`}>
+                              {p.name}
+                            </a>
+                          </span>
+                        ))}
+                      </span>
                     ) : null}
-                    {s.companySlug ? (
-                      <a className="session-co" href={`/companies/${s.companySlug}`}>
-                        {s.companyName}
+                    {s.companies.map((c) => (
+                      <a key={c.slug} className="session-co" href={`/companies/${c.slug}`}>
+                        {c.name}
                       </a>
-                    ) : s.companyName ? (
-                      <span className="session-co">{s.companyName}</span>
-                    ) : null}
+                    ))}
                     {s.room ? <span className="session-room">{s.room}</span> : null}
                     {s.track ? <span className="session-track">{s.track}</span> : null}
                   </div>
