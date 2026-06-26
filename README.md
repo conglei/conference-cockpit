@@ -18,10 +18,7 @@ engine, not a walled app), and **forkable for any conference**. Built on a real
 dataset: AI Engineer World's Fair 2026 — ~297 companies with funding + founders,
 ~488 speakers with bios + photos, ~552 talks, ~2,373 open roles.
 
-The people-first pivot is recorded in
-[ADR-0004](docs/adr/0004-people-first-atom-and-scratchpad-intent.md); the domain
-vocabulary (Person · Intent · Plan · Warm path · Watchlist) lives in
-[`CONTEXT.md`](CONTEXT.md).
+<img width="2682" height="2132" alt="demo" src="https://github.com/user-attachments/assets/37660f6f-3a68-4444-86ad-cd47d9264b08" />
 
 ---
 
