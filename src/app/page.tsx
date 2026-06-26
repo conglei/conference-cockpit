@@ -41,6 +41,7 @@ export default async function HomePage({
   const intent = sp.intent ?? "career-mover";
   const vertical = sp.vertical || undefined;
   const speakingOnly = sp.speaking === "1";
+  const savedOnly = sp.saved === "1";
 
   const db = getDb();
   const people = createPersonRepo(db);
@@ -49,6 +50,10 @@ export default async function HomePage({
 
   const allPeople = people.list();
   const personById = new Map(allPeople.map((p) => [p.id, p]));
+  // People saved to the who-to-meet list (outreach_status === "targeted").
+  const savedIds = new Set(
+    allPeople.filter((p) => p.outreachStatus === "targeted").map((p) => p.id),
+  );
   const byId = new Map(companies.list().map((c) => [c.id, c]));
   const graph: PeopleGraph = {
     people: allPeople,
@@ -67,7 +72,7 @@ export default async function HomePage({
   const verticals = [...vset].sort();
 
   const objective = getObjective(intent);
-  const ranked = rankPeople(
+  const rankedAll = rankPeople(
     {
       graph,
       profile: loadGoalProfile(),
@@ -75,8 +80,12 @@ export default async function HomePage({
       now: new Date(),
       objective,
     },
-    { limit: 30, vertical, speakingOnly },
+    // When showing saved-only, rank deep enough that every saved person appears.
+    { limit: savedOnly ? 2000 : 30, vertical, speakingOnly },
   );
+  const ranked = savedOnly
+    ? rankedAll.filter((p) => savedIds.has(p.personId))
+    : rankedAll;
 
   return (
     <main className="wtm">
@@ -123,6 +132,10 @@ export default async function HomePage({
           <input type="checkbox" name="speaking" value="1" defaultChecked={speakingOnly} />
           Speaking only
         </label>
+        <label className="wtm-check">
+          <input type="checkbox" name="saved" value="1" defaultChecked={savedOnly} />
+          ★ Saved{savedIds.size ? ` (${savedIds.size})` : ""}
+        </label>
         <button type="submit">Apply</button>
       </form>
 
@@ -140,6 +153,11 @@ export default async function HomePage({
 
                 <div className="wtm-body">
                   <div className="wtm-line1">
+                    {savedIds.has(p.personId) ? (
+                      <span className="wtm-saved" title="Saved to your who-to-meet list">
+                        ★
+                      </span>
+                    ) : null}
                     <a className="wtm-name" href={`/people/${p.slug}`}>
                       {p.name}
                     </a>
@@ -222,6 +240,7 @@ const CSS = `
 .wtm-card:hover { border-color:var(--border-strong); background:var(--surface-2); }
 .wtm-body { min-width:0; display:flex; flex-direction:column; gap:.4rem; flex:1; }
 .wtm-line1 { display:flex; align-items:baseline; gap:.5rem; flex-wrap:wrap; }
+.wtm-saved { color:#f59e0b; font-size:.95rem; line-height:1; }
 .wtm-name { font-weight:600; font-size:1rem; color:var(--fg); text-decoration:none; }
 .wtm-name:hover { text-decoration:underline; }
 .wtm-co { font-size:.85rem; color:var(--muted); text-decoration:none; }

@@ -58,6 +58,38 @@ export function logMet(
   return person;
 }
 
+/**
+ * Save someone to your who-to-meet list (PREP phase). Sets
+ * outreach_status='targeted' WITHOUT stamping last_contacted_at — you haven't
+ * contacted them, you've flagged them to meet. Never regresses anyone already
+ * met / further along. Pass `clear` to un-save (back to 'none').
+ */
+export function logTarget(
+  repos: { people: PersonRepo },
+  input: { personId: number; note?: string; clear?: boolean },
+): Person {
+  const existing = repos.people.get(input.personId);
+  if (!existing) throw new Error(`logTarget: no person with id ${input.personId}`);
+
+  if (input.clear) {
+    const cleared = repos.people.update(input.personId, {
+      outreachStatus: existing.outreachStatus === "targeted" ? "none" : existing.outreachStatus,
+    });
+    if (!cleared) throw new Error(`logTarget: failed to update person ${input.personId}`);
+    return cleared;
+  }
+
+  // Only "none" can move up to "targeted"; never pull a met/contacted person back.
+  if (existing.outreachStatus !== "none") return existing;
+  const note = input.note ? input.note.trim() : undefined;
+  const person = repos.people.update(input.personId, {
+    outreachStatus: "targeted",
+    nextAction: note ? `meet at AIE — ${note}` : (existing.nextAction ?? "meet at AIE"),
+  });
+  if (!person) throw new Error(`logTarget: failed to update person ${input.personId}`);
+  return person;
+}
+
 export interface FollowupItem {
   person: Person;
   companyName: string | null;
@@ -65,8 +97,8 @@ export interface FollowupItem {
   draft: string;
 }
 
-/** Statuses that are still "open" in the follow-up funnel (action still owed). */
-const OPEN_FOLLOWUP = new Set(["met", "drafted", "contacted"]);
+/** Statuses that are still "open" in the funnel (action still owed) — incl. saved targets. */
+const OPEN_FOLLOWUP = new Set(["targeted", "met", "drafted", "contacted"]);
 
 /**
  * The follow-up queue: everyone you've met (or started contacting) who still

@@ -12,7 +12,7 @@ import { loadEnvFile } from "../src/onboarding/load-env";
 import { createDb, DB_URL } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createCompanyRepo } from "../src/db/repository";
-import { logMet, followupQueue, draftFollowup } from "../src/followup";
+import { logMet, logTarget, followupQueue, draftFollowup } from "../src/followup";
 import {
   logOutreach,
   LOGGABLE_OUTREACH_STATUSES,
@@ -54,6 +54,21 @@ function main() {
     return;
   }
 
+  // `target` / `untarget` accept one or more ids (save a whole hit-list at once).
+  if (cmd === "target" || cmd === "untarget") {
+    const ids = process.argv.slice(3).map(Number).filter(Number.isFinite);
+    if (!ids.length) {
+      console.error(`Need at least one <personId>. e.g. pnpm conf-followup ${cmd} 1123 1211`);
+      process.exit(1);
+    }
+    const clear = cmd === "untarget";
+    for (const pid of ids) {
+      const person = logTarget({ people }, { personId: pid, note: flag("note"), clear });
+      console.log(`${clear ? "Unsaved" : "Saved"}: ${person.name} (status=${person.outreachStatus})`);
+    }
+    return;
+  }
+
   const id = Number(idArg);
   if (!Number.isFinite(id)) {
     console.error("Need a numeric <personId>.");
@@ -88,7 +103,7 @@ function main() {
     return;
   }
 
-  console.error(`Unknown command "${cmd}". Use: list | met | draft | log`);
+  console.error(`Unknown command "${cmd}". Use: list | target | untarget | met | draft | log`);
   process.exit(1);
 }
 

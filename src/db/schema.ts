@@ -36,9 +36,12 @@ export type Relationship = (typeof RELATIONSHIP)[number];
 
 export const OUTREACH_STATUS = [
   "none",
-  // "met" is the conference touchpoint (product-design §11 Phase 5): you met the
-  // person in-person at the event, before any digital follow-up. TS-only enum
+  // "targeted" is the PREP touchpoint: you saved this person to your who-to-meet
+  // list before the event (no contact yet). It precedes "met". TS-only enum
   // (SQLite stores text) so adding it needs no migration.
+  "targeted",
+  // "met" is the conference touchpoint (product-design §11 Phase 5): you met the
+  // person in-person at the event, before any digital follow-up.
   "met",
   "drafted",
   "contacted",
