@@ -1,0 +1,30 @@
+# Render Blueprint — deploys the web app as a Node web service.
+#
+# The app is server-rendered: every data page is `force-dynamic` and reads the
+# Turso DB at request time (see src/app/*/page.tsx), so it needs a running Node
+# server — NOT a Static Site. The build itself needs no secrets (dynamic pages
+# render per-request, never at build); DATABASE_URL + TURSO_AUTH_TOKEN are only
+# read at runtime and are set in the dashboard (sync: false), never committed.
+#
+# Deploy: Render Dashboard → New → Blueprint → pick this repo → set the two
+# env vars below to your Turso DB URL + a READ-ONLY token. The web app only
+# reads, so a read-only token is correct: turso db tokens create <db> --read-only
+services:
+  - type: web
+    name: conference-compass
+    runtime: node
+    region: oregon # US-West, closest to a Turso DB in aws-us-west-2
+    plan: free # bump to `starter` to avoid free-tier cold starts
+    branch: main
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm start # `next start` binds to Render's $PORT automatically
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false # libsql://<your-db>.turso.io
+      - key: TURSO_AUTH_TOKEN
+        sync: false # a READ-ONLY DB token — the web only reads
+      # - key: CONFERENCE_START_DATE
+      #   value: "2026-06-29"   # optional; controls the Sessions day labels

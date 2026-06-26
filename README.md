@@ -54,9 +54,10 @@ employer or school, a possible referral.)
 The home page **is "Who to meet"** — a people-first ranked list. Each card shows
 the person's name, their company (as an attribute), a why-meet line, pedigree, a
 warm path, their talk slot, a match score, and a draft opener. Filter by
-**Intent**, **Vertical**, **Speaking-only**, and **★ Saved**, and **save anyone
-to your who-to-meet list** with one click. Drill into any person or company for a
-sourced brief (verdict → evidence → who/when → opener → raw notes collapsed).
+**Intent**, **Vertical**, **Speaking-only**, and **★ Saved** (people you've saved
+via the agent — `conf-followup target` — carry a ★). Drill into any person or
+company for a sourced brief (verdict → evidence → who/when → opener → raw notes
+collapsed).
 
 **Explore** the underlying graph from the nav (these are secondary to the
 people-first home):
@@ -212,6 +213,39 @@ live AIE feeds but accept a local snapshot path; nothing is overwritten with a
 blank, so re-running only fills gaps.
 
 ---
+
+## Deploy the web app
+
+The web app is **server-rendered** — every data page is `force-dynamic` and reads
+Turso at request time — so deploy it as a **Node web service, not a static site**.
+Two things make this simple: the build needs **no secrets** (dynamic pages render
+per-request, never at build), and the app only ever **reads** the DB (saving and
+met-logging happen through the agent), so it runs on a **read-only** Turso token.
+There is no separate API service — the Next.js server *is* the backend.
+
+**Render (Blueprint).** A [`render.yaml`](render.yaml) is included.
+
+1. Create a read-only DB token: `turso db tokens create <your-db> --read-only`.
+2. Render Dashboard → **New → Blueprint** → pick this repo. It provisions a Node
+   web service (`pnpm build` → `pnpm start`); pick a region near your DB
+   (e.g. **Oregon** for `aws-us-west-2`).
+3. Set the two runtime env vars (marked `sync: false`, so they're entered in the
+   dashboard, never committed):
+   - `DATABASE_URL` = `libsql://<your-db>.turso.io`
+   - `TURSO_AUTH_TOKEN` = the **read-only** token
+
+**Any Node host works** — it's a stock Next.js app. Vercel is zero-config (import
+the repo, set the same two env vars); Fly.io / Railway / a container just run
+`pnpm build` then `pnpm start`.
+
+**Seed the cloud DB once** (independent of the web deploy). Point the CLIs at
+Turso — put the `libsql://` URL and a **read-write** token in `.env.local` — then:
+
+```bash
+pnpm db:migrate && pnpm seed-demo     # now targets Turso, not the local file
+```
+
+The deployed web app then reads that DB with its separate read-only token.
 
 ## Hard rules
 
