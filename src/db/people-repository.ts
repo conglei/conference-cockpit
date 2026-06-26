@@ -1,10 +1,24 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, like, or, sql } from "drizzle-orm";
 import type { DB } from "./client";
-import { people, type Person, type NewPerson } from "./schema";
+import { people, companies, talks, type Person, type NewPerson } from "./schema";
 
 // Fields the caller provides; id/timestamps are managed by the data layer.
 export type PersonInput = Omit<NewPerson, "id" | "createdAt" | "updatedAt">;
 export type PersonPatch = Partial<Omit<NewPerson, "id" | "createdAt" | "updatedAt">>;
+
+/** A person projected for the directory — only the card fields, joined to company. */
+export type PersonCardRow = {
+  slug: string;
+  name: string;
+  headline: string | null;
+  title: string | null;
+  currentCompany: string | null;
+  photoUrl: string | null;
+  location: string | null;
+  companyName: string | null;
+  verticals: string | null;
+  speaking: number;
+};
 
 /**
  * The typed data layer for people. Mirrors the companies repo (see
@@ -31,6 +45,79 @@ export function createPersonRepo(db: DB) {
           .all();
       }
       return db.select().from(people).all();
+    },
+
+    /**
+     * One PAGE of the people directory — projected (card fields only, NOT the
+     * heavy bio/work_history/education blobs), joined to the company, filtered,
+     * searched, sorted, and paginated AT THE DB. `speaking` is an EXISTS over
+     * talks. Returns the page rows + total matching count.
+     */
+    async listPeoplePage(opts: {
+      q?: string;
+      vertical?: string;
+      speaking?: boolean;
+      sort?: "name" | "company" | "speaking";
+      limit: number;
+      offset: number;
+    }): Promise<{ rows: PersonCardRow[]; total: number }> {
+      const speaks = exists(
+        db.select({ x: sql`1` }).from(talks).where(eq(talks.speakerId, people.id)),
+      );
+      const conds = [];
+      if (opts.speaking) conds.push(speaks);
+      if (opts.vertical && opts.vertical !== "all")
+        conds.push(like(companies.verticals, `%"${opts.vertical}"%`));
+      const needle = opts.q?.trim();
+      if (needle) {
+        const pat = `%${needle}%`;
+        conds.push(
+          or(
+            like(people.name, pat),
+            like(people.headline, pat),
+            like(people.title, pat),
+            like(people.currentCompany, pat),
+            like(companies.name, pat),
+          ),
+        );
+      }
+      const where = conds.length === 1 ? conds[0] : conds.length ? and(...conds) : undefined;
+
+      const order =
+        opts.sort === "company"
+          ? [asc(companies.name), asc(people.name)]
+          : opts.sort === "speaking"
+            ? [desc(speaks), asc(people.name)]
+            : [asc(people.name)];
+
+      const rowsQ = db
+        .select({
+          slug: people.slug,
+          name: people.name,
+          headline: people.headline,
+          title: people.title,
+          currentCompany: people.currentCompany,
+          photoUrl: people.photoUrl,
+          location: people.location,
+          companyName: companies.name,
+          verticals: companies.verticals,
+          speaking: sql<number>`(${speaks})`,
+        })
+        .from(people)
+        .leftJoin(companies, eq(people.companyId, companies.id))
+        .$dynamic();
+      if (where) rowsQ.where(where);
+      const rows = (await rowsQ.orderBy(...order).limit(opts.limit).offset(opts.offset).all()) as PersonCardRow[];
+
+      const countQ = db
+        .select({ n: count() })
+        .from(people)
+        .leftJoin(companies, eq(people.companyId, companies.id))
+        .$dynamic();
+      if (where) countQ.where(where);
+      const total = (await countQ.get())?.n ?? 0;
+
+      return { rows, total };
     },
 
     async get(id: number): Promise<Person | undefined> {

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Avatar from "./Avatar";
-import { replaceQuery } from "./url-state";
 
 /** A person as the directory renders it — a browsable, taste-neutral card. */
 export type PersonCardData = {
@@ -24,68 +24,62 @@ const SORTS: { key: SortKey; label: string }[] = [
 ];
 
 /**
- * Browse everyone in the graph — search by name/role/company, filter by vertical
- * or "speaking only", sort. The ranked, taste-driven view is the home
- * `who-to-meet` page; this is the neutral A–Z explorer. Filter + sort run in
- * memory and mirror to the URL.
+ * Browse everyone in the graph. Search, vertical filter, "speaking only", sort,
+ * and pagination all happen on the SERVER (the page queries one page at a time) —
+ * this client component reflects current state and pushes URL changes, so the
+ * full people set is never shipped or filtered in the browser. Search debounces.
  */
 export default function PeopleDirectory({
   people,
-  initialQuery,
-  initialVertical,
-  initialSpeaking,
-  initialSort,
+  total,
+  page,
+  pageSize,
+  q,
+  vertical,
+  verticals,
+  speaking,
+  sort,
 }: {
   people: PersonCardData[];
-  initialQuery?: string;
-  initialVertical?: string;
-  initialSpeaking?: boolean;
-  initialSort?: string;
+  total: number;
+  page: number;
+  pageSize: number;
+  q: string;
+  vertical: string;
+  verticals: string[];
+  speaking: boolean;
+  sort: SortKey;
 }) {
-  const verticals = useMemo(
-    () => [...new Set(people.flatMap((p) => p.verticals))].sort(),
-    [people],
-  );
+  const router = useRouter();
+  const [search, setSearch] = useState(q);
 
-  const [q, setQ] = useState(initialQuery ?? "");
-  const [vertical, setVertical] = useState(initialVertical ?? "all");
-  const [speaking, setSpeaking] = useState(Boolean(initialSpeaking));
-  const [sort, setSort] = useState<SortKey>(
-    (SORTS.some((s) => s.key === initialSort) ? initialSort : "name") as SortKey,
-  );
+  /** Build /people?… from current state plus overrides (defaults omitted). */
+  const urlFor = (over: Partial<Record<string, string | undefined>>) => {
+    const m = { q, vertical, speaking: speaking ? "1" : undefined, sort, page: String(page), ...over };
+    const p = new URLSearchParams();
+    if (m.q) p.set("q", m.q);
+    if (m.vertical && m.vertical !== "all") p.set("vertical", m.vertical);
+    if (m.speaking) p.set("speaking", "1");
+    if (m.sort && m.sort !== "name") p.set("sort", m.sort);
+    if (m.page && m.page !== "1") p.set("page", m.page);
+    const qs = p.toString();
+    return qs ? `/people?${qs}` : "/people";
+  };
+  // Filter/sort/search changes reset to page 1; pagination sets page explicitly.
+  const go = (over: Partial<Record<string, string | undefined>>) =>
+    router.push(urlFor({ page: "1", ...over }));
 
+  useEffect(() => setSearch(q), [q]);
   useEffect(() => {
-    replaceQuery({
-      q: q || undefined,
-      vertical: vertical === "all" ? undefined : vertical,
-      speaking: speaking ? "1" : undefined,
-      sort: sort === "name" ? undefined : sort,
-    });
-  }, [q, vertical, speaking, sort]);
+    if (search === q) return;
+    const t = setTimeout(() => go({ q: search || undefined }), 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
-  const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const filtered = people.filter((p) => {
-      if (speaking && !p.speaking) return false;
-      if (vertical !== "all" && !p.verticals.includes(vertical)) return false;
-      if (needle) {
-        const hay = `${p.name} ${p.headline ?? ""} ${p.companyName ?? ""}`.toLowerCase();
-        if (!hay.includes(needle)) return false;
-      }
-      return true;
-    });
-    return filtered.sort((a, b) => {
-      switch (sort) {
-        case "company":
-          return (a.companyName ?? "~").localeCompare(b.companyName ?? "~") || a.name.localeCompare(b.name);
-        case "speaking":
-          return Number(b.speaking) - Number(a.speaking) || a.name.localeCompare(b.name);
-        case "name":
-        default:
-          return a.name.localeCompare(b.name);
-      }
-    });
-  }, [people, q, vertical, speaking, sort]);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
 
   return (
     <>
@@ -94,14 +88,14 @@ export default function PeopleDirectory({
           type="search"
           className="dir-search"
           placeholder="Search people, roles, companies…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           aria-label="search people"
         />
         <select
           className="dir-select"
           value={vertical}
-          onChange={(e) => setVertical(e.target.value)}
+          onChange={(e) => go({ vertical: e.target.value === "all" ? undefined : e.target.value })}
           aria-label="filter by vertical"
         >
           <option value="all">All verticals</option>
@@ -115,7 +109,7 @@ export default function PeopleDirectory({
           <input
             type="checkbox"
             checked={speaking}
-            onChange={(e) => setSpeaking(e.target.checked)}
+            onChange={(e) => go({ speaking: e.target.checked ? "1" : undefined })}
           />
           Speaking only
         </label>
@@ -123,7 +117,7 @@ export default function PeopleDirectory({
 
       <div className="dir-subbar">
         <span className="dir-count">
-          {rows.length} {rows.length === 1 ? "person" : "people"}
+          {total.toLocaleString()} {total === 1 ? "person" : "people"}
         </span>
         <span className="dir-sort">
           sort:
@@ -133,7 +127,7 @@ export default function PeopleDirectory({
               type="button"
               className="dir-sort-btn"
               data-active={sort === s.key}
-              onClick={() => setSort(s.key)}
+              onClick={() => go({ sort: s.key === "name" ? undefined : s.key })}
             >
               {s.label}
             </button>
@@ -141,14 +135,38 @@ export default function PeopleDirectory({
         </span>
       </div>
 
-      {rows.length === 0 ? (
+      {people.length === 0 ? (
         <p className="empty">No people match these filters.</p>
       ) : (
-        <div className="dir-grid">
-          {rows.map((p) => (
-            <PersonCard key={p.slug} p={p} />
-          ))}
-        </div>
+        <>
+          <div className="dir-grid">
+            {people.map((p) => (
+              <PersonCard key={p.slug} p={p} />
+            ))}
+          </div>
+
+          <nav className="pager" aria-label="pagination">
+            <button
+              type="button"
+              className="filter"
+              disabled={page <= 1}
+              onClick={() => router.push(urlFor({ page: String(page - 1) }))}
+            >
+              ← Prev
+            </button>
+            <span className="muted">
+              {from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()} · page {page}/{totalPages}
+            </span>
+            <button
+              type="button"
+              className="filter"
+              disabled={page >= totalPages}
+              onClick={() => router.push(urlFor({ page: String(page + 1) }))}
+            >
+              Next →
+            </button>
+          </nav>
+        </>
       )}
     </>
   );
