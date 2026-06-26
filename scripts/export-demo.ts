@@ -22,6 +22,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { loadEnvFile } from "../src/onboarding/load-env";
 import { resolveDbUrl } from "../src/db/client";
+import { normalizeStage } from "../src/providers/normalize-stage";
 
 // Honor a DATABASE_URL from .env.local (an explicit shell var still wins).
 loadEnvFile();
@@ -56,6 +57,17 @@ const companies = (
      FROM companies`,
   )
 ).rows.map(toPlain);
+
+// Backfill `stage` from the (better-populated) Apollo funding round so the demo
+// data is usable for filtering/ranking — `stage` alone is CSV-only (~13%), while
+// `latest_round` covers ~50%. Only clean fundraising rounds map; non-events stay
+// null. Never overwrite a curated CSV stage.
+for (const c of companies) {
+  if (!c.stage && c.latest_round) {
+    const s = normalizeStage(c.latest_round as string);
+    if (s) c.stage = s;
+  }
+}
 
 // People — full public professional profile. No connection_degree / can_refer /
 // outreach_status / next_action* / last_contacted (personal CRM), no
