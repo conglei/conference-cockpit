@@ -58,6 +58,25 @@ export function createCompanyRepo(db: DB) {
     },
 
     /**
+     * Distinct conference verticals across all companies — for the people/company
+     * filter dropdowns. `verticals` is a JSON-array text column, so we pull the
+     * (few hundred) distinct raw values and flatten them in JS.
+     */
+    async verticalsList(): Promise<string[]> {
+      const rows = await db.selectDistinct({ v: companies.verticals }).from(companies).all();
+      const set = new Set<string>();
+      for (const r of rows) {
+        if (!r.v) continue;
+        try {
+          for (const x of JSON.parse(r.v) as unknown[]) if (typeof x === "string") set.add(x);
+        } catch {
+          /* malformed verticals JSON → skip */
+        }
+      }
+      return [...set].sort();
+    },
+
+    /**
      * Look up a company by its canonical identity (domain OR linkedin_url) —
      * the dedupe rule from ADR-0001. Used by the resolver to avoid colliding
      * with an already-resolved row. Null/undefined keys never match.
