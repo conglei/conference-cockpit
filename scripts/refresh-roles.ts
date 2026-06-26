@@ -158,7 +158,10 @@ async function runRefresh() {
   const getHarvest = () => (harvest ??= createProvider("harvest"));
 
   let all = await companies.list();
-  if (only) all = all.filter((c) => c.slug === only);
+  if (only) {
+    const set = new Set(only.split(",").map((s) => s.trim()).filter(Boolean));
+    all = all.filter((c) => set.has(c.slug));
+  }
   if (limit) all = all.slice(0, limit);
 
   const { urlsByCo, idsByCo, atsSourced } = await indexRoles(roles);
