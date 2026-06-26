@@ -2,44 +2,58 @@ import { getDb } from "@/db/client";
 import { asList } from "@/db/columns";
 import { createPersonRepo } from "@/db/people-repository";
 import { createCompanyRepo } from "@/db/repository";
-import { createTalkRepo } from "@/db/talk-repository";
 import PeopleDirectory, { type PersonCardData } from "../_components/PeopleTable";
 
 // The DB is read at request time, not build time.
 export const dynamic = "force-dynamic";
 
+const PAGE_SIZE = 60;
+
+type PeopleSort = "name" | "company" | "speaking";
+function isSort(v: string | undefined): v is PeopleSort {
+  return v === "name" || v === "company" || v === "speaking";
+}
+
 export default async function PeoplePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; vertical?: string; speaking?: string; sort?: string }>;
+  searchParams: Promise<{ q?: string; vertical?: string; speaking?: string; sort?: string; page?: string }>;
 }) {
   const sp = await searchParams;
-  const db = getDb();
-  // Three bounded queries: people + companies (for employer/verticals) + talks
-  // (for the speaking flag). Indexed in memory — no per-person lookups.
-  const [people, companies, talks] = await Promise.all([
-    createPersonRepo(db).list(),
-    createCompanyRepo(db).list(),
-    createTalkRepo(db).list(),
-  ]);
-  const byId = new Map(companies.map((c) => [c.id, c]));
-  const speakerIds = new Set(
-    talks.map((t) => t.speakerId).filter((id): id is number => id != null),
-  );
+  const q = sp.q ?? "";
+  const vertical = sp.vertical ?? "all";
+  const speaking = sp.speaking === "1";
+  const sort: PeopleSort = isSort(sp.sort) ? sp.sort : "name";
+  const page = Math.max(1, Number(sp.page) || 1);
 
-  const cards: PersonCardData[] = people.map((p) => {
-    const co = p.companyId != null ? byId.get(p.companyId) : undefined;
-    return {
-      slug: p.slug,
-      name: p.name,
-      headline: p.headline ?? p.title ?? null,
-      companyName: p.currentCompany ?? co?.name ?? null,
-      verticals: asList(co?.verticals),
-      speaking: speakerIds.has(p.id),
-      photoUrl: p.photoUrl ?? null,
-      location: p.location ?? null,
-    };
-  });
+  const db = getDb();
+  // Filter + search + sort + paginate AT THE DB — projected to card fields (no
+  // bio/work_history blobs), one page per request. Verticals list is a cheap
+  // distinct over companies for the dropdown.
+  const [{ rows, total }, verticals] = await Promise.all([
+    createPersonRepo(db).listPeoplePage({
+      q,
+      vertical,
+      speaking,
+      sort,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    }),
+    createCompanyRepo(db).verticalsList(),
+  ]);
+
+  const cards: PersonCardData[] = rows.map((p) => ({
+    slug: p.slug,
+    name: p.name,
+    headline: p.headline ?? p.title ?? null,
+    companyName: p.currentCompany ?? p.companyName ?? null,
+    verticals: asList(p.verticals),
+    speaking: Boolean(p.speaking),
+    photoUrl: p.photoUrl ?? null,
+    location: p.location ?? null,
+  }));
+
+  const filtered = q !== "" || vertical !== "all" || speaking;
 
   return (
     <main className="dir-main">
@@ -48,16 +62,20 @@ export default async function PeoplePage({
       </p>
       <h1>People</h1>
       <p className="subtitle">
-        {cards.length} people in the graph — search by name, role, company, or vertical.
-        For a ranked, taste-driven shortlist, see <a href="/">Who to meet</a>.
+        {total.toLocaleString()} {filtered ? "matching " : ""}people in the graph — search by name,
+        role, company, or vertical. For a ranked, taste-driven shortlist, see <a href="/">Who to meet</a>.
       </p>
 
       <PeopleDirectory
         people={cards}
-        initialQuery={sp.q}
-        initialVertical={sp.vertical}
-        initialSpeaking={sp.speaking === "1"}
-        initialSort={sp.sort}
+        total={total}
+        page={page}
+        pageSize={PAGE_SIZE}
+        q={q}
+        vertical={vertical}
+        verticals={verticals}
+        speaking={speaking}
+        sort={sort}
       />
     </main>
   );
