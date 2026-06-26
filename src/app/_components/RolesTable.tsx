@@ -26,17 +26,16 @@ export type RoleRow = {
 
 const SORT_LABEL: Record<RoleSortKey, string> = {
   fit: "Company fit",
-  posted: "Posted",
+  posted: "Newest",
   title: "Title",
   company: "Company",
 };
-const SORTS: RoleSortKey[] = ["fit", "posted", "title"];
 
 /**
- * Roles explorer: open roles as fit-anchored cards. A job-seeker scans by
- * company fit (the decision axis for a company-first lens), with freshness
- * sourced on every posting and the description on demand. Filter + sort run in
- * memory; the active view mirrors into the URL so it stays deep-linkable.
+ * Roles explorer: open roles as cards. Explore by what matters without a taste
+ * profile — search, work type, and recency — with company fit as a *bonus* badge
+ * and sort only where a score exists. Freshness is sourced on every posting; the
+ * description opens on demand. Filter + sort run in memory and mirror to the URL.
  */
 export default function RolesExplorer({
   roles,
@@ -49,20 +48,40 @@ export default function RolesExplorer({
   initialSort: RoleSortKey;
   initialDir: SortDir;
 }) {
+  const anyScored = useMemo(() => roles.some((r) => r.companyScore != null), [roles]);
+  const workTypes = useMemo(
+    () =>
+      [...new Set(roles.map((r) => r.workType).filter((w): w is string => Boolean(w) && w !== "unknown"))].sort(),
+    [roles],
+  );
+  const sortKeys: RoleSortKey[] = anyScored ? ["fit", "posted", "title"] : ["posted", "title"];
+
   const [status, setStatus] = useState<string>(initialStatus ?? "all");
-  const [sort, setSort] = useState<RoleSortKey>(initialSort);
+  const [q, setQ] = useState<string>("");
+  const [workType, setWorkType] = useState<string>("all");
+  const [sort, setSort] = useState<RoleSortKey>(
+    initialSort === "fit" && !anyScored ? "posted" : initialSort,
+  );
   const [dir, setDir] = useState<SortDir>(initialDir);
 
   useEffect(() => {
     replaceQuery({
       status: status === "all" ? undefined : status,
-      sort,
+      sort: sort === "posted" ? undefined : sort,
       dir,
     });
   }, [status, sort, dir]);
 
   const rows = useMemo(() => {
-    const filtered = filterByStatus(roles, status);
+    const needle = q.trim().toLowerCase();
+    const filtered = filterByStatus(roles, status).filter((r) => {
+      if (workType !== "all" && r.workType !== workType) return false;
+      if (needle) {
+        const hay = `${r.title} ${r.companyName ?? ""} ${r.location ?? ""}`.toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    });
     const sign = dir === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => {
       let cmp = 0;
@@ -71,11 +90,10 @@ export default function RolesExplorer({
         cmp = (a.postedDate ?? "").localeCompare(b.postedDate ?? "");
       else if (sort === "title") cmp = a.title.localeCompare(b.title);
       else cmp = (a.companyName ?? "").localeCompare(b.companyName ?? "");
-      // Tie-break by company fit so equal keys still surface strong companies.
-      if (cmp === 0) cmp = (a.companyScore ?? -1) - (b.companyScore ?? -1);
+      if (cmp === 0) cmp = (a.postedDate ?? "").localeCompare(b.postedDate ?? "");
       return cmp * sign;
     });
-  }, [roles, status, sort, dir]);
+  }, [roles, status, q, workType, sort, dir]);
 
   // Clicking the active sort flips direction; a new key defaults to desc.
   const onSort = (key: RoleSortKey) => {
@@ -88,6 +106,30 @@ export default function RolesExplorer({
 
   return (
     <>
+      <div className="dir-controls">
+        <input
+          type="search"
+          className="dir-search"
+          placeholder="Search roles, companies, locations…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label="search roles"
+        />
+        <select
+          className="dir-select"
+          value={workType}
+          onChange={(e) => setWorkType(e.target.value)}
+          aria-label="filter by work type"
+        >
+          <option value="all">Any location type</option>
+          {workTypes.map((w) => (
+            <option key={w} value={w}>
+              {w[0].toUpperCase() + w.slice(1)}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <nav className="filters">
         <button
           type="button"
@@ -108,13 +150,11 @@ export default function RolesExplorer({
             {s}
           </button>
         ))}
-      </nav>
-
-      <nav className="filters" aria-label="sort roles">
+        <span className="app-nav-divider" aria-hidden="true" />
         <span className="muted" style={{ alignSelf: "center", marginRight: 4 }}>
           sort:
         </span>
-        {SORTS.map((key) => {
+        {sortKeys.map((key) => {
           const active = key === sort;
           return (
             <button

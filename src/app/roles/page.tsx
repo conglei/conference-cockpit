@@ -11,14 +11,32 @@ function isSortKey(v: string | undefined): v is RoleSortKey {
   return !!v && (ROLE_SORT_KEYS as readonly string[]).includes(v);
 }
 
+/** Some role descriptions arrive as (entity-encoded) HTML — decode + strip to prose. */
+function cleanDescription(s: string | null): string | null {
+  if (!s) return null;
+  const t = s
+    .replace(/&amp;/g, "&") // collapse one level first (descriptions are double-encoded)
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&") // any remaining from &amp;amp;
+    .replace(/<[^>]+>/g, " ") // strip tags (now decoded)
+    .replace(/\s+/g, " ")
+    .trim();
+  return t || null;
+}
+
 export default async function RolesPage({
   searchParams,
 }: {
   searchParams: Promise<{ status?: string; sort?: string; dir?: string }>;
 }) {
   const { status, sort, dir } = await searchParams;
-  // Default sort is company fit — the decision axis for a company-first lens.
-  const sortKey: RoleSortKey = isSortKey(sort) ? sort : "fit";
+  // Default sort is recency — neutral and useful with or without taste scores.
+  // (Company fit is a bonus axis, offered only when scores exist.)
+  const sortKey: RoleSortKey = isSortKey(sort) ? sort : "posted";
   const sortDir: SortDir = dir === "asc" ? "asc" : "desc";
 
   const db = getDb();
@@ -47,7 +65,7 @@ export default async function RolesPage({
       location: r.location,
       workType: r.workType,
       salary: r.salary,
-      description: r.description,
+      description: cleanDescription(r.description),
       postedDate: r.postedDate,
       status: r.status,
       source: r.source,
@@ -69,8 +87,8 @@ export default async function RolesPage({
       </p>
       <h1>Open roles</h1>
       <p className="subtitle">
-        {rows.length} roles across your target companies — ranked by company fit,
-        every posting dated.
+        {rows.length} roles across {new Set(rows.map((r) => r.companySlug).filter(Boolean)).size}{" "}
+        companies — newest first, every posting dated.
       </p>
 
       <RolesExplorer
