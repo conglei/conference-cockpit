@@ -25,12 +25,6 @@ function readResume(): string | undefined {
   }
 }
 
-/** photoUrl is a path on ai.engineer; absolute URLs pass through (Avatar handles 404). */
-function photoSrc(u: string | null): string | null {
-  if (!u) return null;
-  return u.startsWith("http") ? u : `https://ai.engineer${u}`;
-}
-
 function companyMeta(c: Company | undefined): string[] {
   if (!c) return [];
   return [c.stage, c.sizeBand, c.fundingTotal ?? c.latestAmount ?? c.latestRound].filter(
@@ -142,7 +136,7 @@ export default async function HomePage({
             const person = personById.get(p.personId);
             return (
               <li key={p.personId} className="wtm-card">
-                <Avatar name={p.name} src={photoSrc(person?.photoUrl ?? null)} size={48} />
+                <Avatar name={p.name} src={person?.photoUrl ?? null} size={48} />
 
                 <div className="wtm-body">
                   <div className="wtm-line1">
