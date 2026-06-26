@@ -76,7 +76,11 @@ export default async function SessionsPage() {
     }
     const speaker = t.speakerId != null ? people.get(t.speakerId) : undefined;
     if (speaker && !s.speakers.some((x) => x.slug === speaker.slug)) {
-      s.speakers.push({ name: speaker.name, slug: speaker.slug });
+      s.speakers.push({
+        name: speaker.name,
+        slug: speaker.slug,
+        photoUrl: speaker.photoUrl ?? null,
+      });
     }
     const company = t.companyId != null ? companies.get(t.companyId) : undefined;
     if (company && !s.companies.some((x) => x.slug === company.slug)) {

@@ -2321,6 +2321,21 @@ a.role-card-company:hover {
   font-size: 0.8rem;
   color: var(--muted);
 }
+.session-facepile {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.session-face {
+  display: inline-flex;
+  margin-left: -6px;
+}
+.session-face:first-child {
+  margin-left: 0;
+}
+.session-face .avatar {
+  border: 1.5px solid var(--surface);
+}
 .session-speaker {
   font-weight: 550;
   color: var(--fg-soft);

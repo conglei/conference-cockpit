@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { replaceQuery } from "./url-state";
+import Avatar from "./Avatar";
 
 export type SessionRow = {
   id: number;
@@ -13,7 +14,7 @@ export type SessionRow = {
   endMin: number | null;
   room: string | null;
   track: string | null;
-  speakers: { name: string; slug: string }[];
+  speakers: { name: string; slug: string; photoUrl: string | null }[];
   companies: { name: string; slug: string }[];
 };
 
@@ -214,6 +215,15 @@ export default function SessionsExplorer({
                 <div className="session-body">
                   <h3 className="session-title">{s.title}</h3>
                   <div className="session-meta">
+                    {s.speakers.length ? (
+                      <span className="session-facepile" aria-hidden="true">
+                        {s.speakers.slice(0, 3).map((p) => (
+                          <span key={p.slug} className="session-face">
+                            <Avatar name={p.name} src={p.photoUrl} size={22} />
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
                     {s.speakers.length ? (
                       <span className="session-speakers">
                         {s.speakers.map((p, i) => (

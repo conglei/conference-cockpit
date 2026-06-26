@@ -35,23 +35,27 @@ export default function Avatar({
     .slice(0, 2)
     .map((s) => s[0]?.toUpperCase() ?? "")
     .join("");
-  const cls = `avatar${size >= 64 ? " avatar-lg" : ""}`;
+  // Inline width/height so the `size` prop actually wins over the CSS class.
+  const dim = { width: `${size}px`, height: `${size}px` };
 
   if (resolved && !broken) {
     // eslint-disable-next-line @next/next/no-img-element
     return (
       <img
-        className={cls}
+        className="avatar"
         src={resolved}
         alt=""
-        width={size}
-        height={size}
+        style={dim}
         onError={() => setBroken(true)}
       />
     );
   }
   return (
-    <span className={`${cls} avatar-fallback`} aria-hidden="true">
+    <span
+      className="avatar avatar-fallback"
+      aria-hidden="true"
+      style={{ ...dim, fontSize: `${Math.round(size * 0.38)}px` }}
+    >
       {initials}
     </span>
   );

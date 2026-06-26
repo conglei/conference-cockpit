@@ -76,7 +76,9 @@ export default function CompaniesDirectory({
       if (hiring && c.roleCount === 0) return false;
       if (vertical !== "all" && !c.verticals.includes(vertical)) return false;
       if (needle) {
-        const hay = `${c.name} ${c.description ?? ""} ${c.industry ?? ""} ${c.verticals.join(" ")}`.toLowerCase();
+        // Match identity + category, NOT the prose description (which makes
+        // "google" match every "ex-Google founders" blurb).
+        const hay = `${c.name} ${c.domain ?? ""} ${c.industry ?? ""} ${c.verticals.join(" ")}`.toLowerCase();
         if (!hay.includes(needle)) return false;
       }
       return true;
