@@ -3,7 +3,7 @@
 **Tell me _who_ to meet at a conference — when, why, and how to open the
 conversation — by asking your AI assistant.**
 
-A 500-person AI conference hands you a flat list of 488 speakers and a schedule
+A 500-person AI conference hands you a flat list of 533 speakers and a schedule
 grid. Compass turns that into a **ranked list of the specific people worth your
 time**: each one with a *sourced* why-meet line, their pedigree, a warm path in,
 their talk slot (when and where to catch them), a match score, and a draft
@@ -15,9 +15,9 @@ opener — in the time it takes to ask.
 
 It's **open source**, **agent-native** (a set of Claude Code skills over a small
 engine, not a walled app), and **forkable for any conference**. Built on a real
-dataset: AI Engineer World's Fair 2026 — ~297 companies with funding + founders,
-~488 speakers with bios + photos, ~552 talks, ~4,640 open roles pulled live from
-company ATS boards.
+dataset: AI Engineer World's Fair 2026 — ~316 companies with funding + founders,
+~533 speakers with bios + photos, ~552 sessions, ~4,960 open roles pulled live
+from company ATS boards.
 
 <img width="2682" height="2132" alt="demo" src="https://github.com/user-attachments/assets/37660f6f-3a68-4444-86ad-cd47d9264b08" />
 
@@ -32,7 +32,7 @@ You → Claude Code:  "Who should I meet at AIE 2026, and why?"
 Claude runs the `who-to-meet` skill:
 
 ```
-Who to meet [Career Mover] — top 12 of 488 people
+Who to meet [Career Mover] — top 12 of 533 people
 
  1. Andrew Dai  [0.90]
     Co-founder @ Elorian AI | ex-DeepMind · Elorian AI
@@ -131,8 +131,8 @@ the ranking reflects your taste), then **`who-to-meet`** — see [the skills](#u
 
 > **The data is already in the repo.** The committed snapshot
 > ([`seed/demo-snapshot.json`](seed/)) is the *complete* conference graph — all
-> **~297 companies**, **~488 speakers** (with bios + photos), **~552 talks**, and
-> **~4,640 open roles** (live from company ATS boards + careers pages). `pnpm
+> **~316 companies**, **~533 speakers** (with bios + photos), **~552 sessions**, and
+> **~4,960 open roles** (live from company ATS boards + careers pages). `pnpm
 > seed-demo` loads every bit of it into a local
 > libSQL/SQLite DB in seconds. You do **not** run any enrichment to use the demo.
 
@@ -292,7 +292,7 @@ Engineer World's Fair 2026** program. On top of that, an enrichment pass fills i
       from the LinkedIn/careers passes entirely — the taste is early/mid-stage,
       founder-bar companies, not big-tech.
     - Explicitly **junior** postings (intern, new-grad, "junior", co-op) are dropped.
-  - Result: **~167 of 297** companies carry fresh openings; the rest are VCs,
+  - Result: **~181 of 316** companies carry fresh openings; the rest are VCs,
     universities, or startups with no public openings right now.
 
 It's a **point-in-time snapshot**: every enriched field carries a `source · as of`
