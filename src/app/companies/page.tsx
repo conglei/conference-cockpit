@@ -41,9 +41,6 @@ export default async function CompaniesPage({
 
   return (
     <main className="dir-main">
-      <p className="subtitle">
-        <a href="/">← The plan</a>
-      </p>
       <h1>Companies</h1>
       <p className="subtitle">
         {cards.length} companies in the graph — filter by what they do, who&apos;s

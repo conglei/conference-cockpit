@@ -16,9 +16,6 @@ export default async function WhoNextPage() {
 
   return (
     <main>
-      <p className="subtitle">
-        <a href="/">← Companies</a>
-      </p>
       <h1>Who next</h1>
       <p className="subtitle">
         {entries.length} warm path{entries.length === 1 ? "" : "s"}, ranked by

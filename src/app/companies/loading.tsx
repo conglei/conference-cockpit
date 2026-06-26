@@ -2,9 +2,6 @@
 export default function Loading() {
   return (
     <main className="dir-main">
-      <p className="subtitle">
-        <a href="/">← Who to meet</a>
-      </p>
       <div className="skeleton sk-title" />
       <div className="skeleton sk-sub" />
       <div className="dir-grid">

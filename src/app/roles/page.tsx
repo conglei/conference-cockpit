@@ -78,9 +78,6 @@ export default async function RolesPage({
 
   return (
     <main>
-      <p className="subtitle">
-        <a href="/">← The plan</a>
-      </p>
       <h1>Open roles</h1>
       <p className="subtitle">
         {total.toLocaleString()} {filtered ? "matching " : ""}roles — newest first, every posting dated.

@@ -20,6 +20,7 @@ import { readDeepDive } from "@/enrich/read";
 import type { Person } from "@/db/schema";
 import CopyButton from "../../_components/CopyButton";
 import Avatar from "../../_components/Avatar";
+import ExpandableText from "../../_components/ExpandableText";
 
 // The DB + markdown files are read at request time, not build time.
 export const dynamic = "force-dynamic";
@@ -98,12 +99,6 @@ export default async function CompanyBriefPage({
 
   return (
     <main className="brief">
-      <nav className="brief-back">
-        <a href="/companies">← Companies</a>
-        <span className="brief-back-sep">·</span>
-        <a href="/">The plan</a>
-      </nav>
-
       {/* ---- Verdict header ---- */}
       <header className="brief-head">
         <div className="brief-head-main">
@@ -123,7 +118,7 @@ export default async function CompanyBriefPage({
             <Chip prov={identityProv} now={now} />
           </div>
           {company.description ? (
-            <p className="brief-tagline">{company.description}</p>
+            <ExpandableText className="brief-tagline" text={company.description} />
           ) : null}
           <p className="brief-why">{brief.whyLine}</p>
         </div>
@@ -161,6 +156,23 @@ export default async function CompanyBriefPage({
             </span>
           ))}
         </div>
+      ) : null}
+
+      {/* ---- Who to meet (the core action — kept high on the page) ---- */}
+      {people.length ? (
+        <section className="brief-section">
+          <span className="section-label">Who to meet ({people.length})</span>
+          <div className="people-cards">
+            {people.map((p) => (
+              <PersonMini
+                key={p.id}
+                p={p}
+                speaking={brief.whoToMeet.find((w) => w.personId === p.id)?.speaking}
+                slot={slotFor(brief, p.id)}
+              />
+            ))}
+          </div>
+        </section>
       ) : null}
 
       {/* ---- Score breakdown (only when taste axes exist; hidden on a clean DB) ---- */}
@@ -223,23 +235,6 @@ export default async function CompanyBriefPage({
               </div>
             ))}
           </dl>
-        </section>
-      ) : null}
-
-      {/* ---- Who to meet ---- */}
-      {people.length ? (
-        <section className="brief-section">
-          <span className="section-label">Who to meet ({people.length})</span>
-          <div className="people-cards">
-            {people.map((p) => (
-              <PersonMini
-                key={p.id}
-                p={p}
-                speaking={brief.whoToMeet.find((w) => w.personId === p.id)?.speaking}
-                slot={slotFor(brief, p.id)}
-              />
-            ))}
-          </div>
         </section>
       ) : null}
 
