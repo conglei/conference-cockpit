@@ -12,9 +12,11 @@ next-env.d.ts
 # committed. Onboarding scaffolds these locally from in-code starter templates.
 profile/
 
-# Generated enrichment deep-dives (regenerable; contain scraped personal data).
-companies/
-people/
+# Generated enrichment deep-dives at the repo ROOT (regenerable; scraped personal
+# data). Anchored with a leading slash so these DON'T also ignore the app routes
+# src/app/companies/ and src/app/people/ (a bare `companies/` matched those too).
+/companies/
+/people/
 
 # Scratch space for one-off import maps, run logs, etc.
 .scratch/
