@@ -172,15 +172,13 @@ export default async function HomePage({
                     </div>
                   ) : null}
 
+                  {/* The why-line is the pedigree/contributions summary; don't
+                      repeat it as chips. Warm-path (shared connections) is a
+                      distinct signal, so it keeps its chips. */}
                   {p.whyLine ? <div className="wtm-why">{p.whyLine}</div> : null}
 
-                  {p.pedigree.length || p.warmPath.shared.length ? (
+                  {p.warmPath.shared.length ? (
                     <div className="wtm-chips">
-                      {p.pedigree.map((d) => (
-                        <span key={d} className="wtm-chip">
-                          {d}
-                        </span>
-                      ))}
                       {p.warmPath.shared.map((d) => (
                         <span key={d} className="wtm-chip wtm-chip-warm">
                           {d}
