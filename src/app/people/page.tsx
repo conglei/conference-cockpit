@@ -57,9 +57,6 @@ export default async function PeoplePage({
 
   return (
     <main className="dir-main">
-      <p className="subtitle">
-        <a href="/">← Who to meet</a>
-      </p>
       <h1>People</h1>
       <p className="subtitle">
         {total.toLocaleString()} {filtered ? "matching " : ""}people in the graph — search by name,

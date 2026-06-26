@@ -3,11 +3,12 @@
 import { usePathname } from "next/navigation";
 
 /**
- * Primary destination is the trailer (`/`). The data tables are secondary —
- * "explore the underlying graph" — and live in a muted group so the home page
- * reads as the product, not as one tab among five (product-design §11 Phase 4).
+ * A single, clean nav row: the brand goes home (the "who to meet" trailer), and
+ * one flat, uniformly-styled list of destinations. The row never wraps — it
+ * scrolls horizontally on narrow screens — so the header stays one tidy line.
  */
-const EXPLORE = [
+const LINKS = [
+  { href: "/", label: "Who to meet", exact: true },
   { href: "/sessions", label: "Sessions" },
   { href: "/people", label: "People" },
   { href: "/companies", label: "Companies" },
@@ -17,7 +18,6 @@ const EXPLORE = [
 
 export default function Nav() {
   const pathname = usePathname();
-  const onHome = pathname === "/";
   return (
     <header className="app-bar">
       <div className="app-bar-inner">
@@ -26,17 +26,13 @@ export default function Nav() {
           <span className="brand-name">Conference Compass</span>
         </a>
         <nav className="app-nav" aria-label="primary">
-          <a href="/" data-active={onHome}>
-            Who to meet
-          </a>
-          <span className="app-nav-divider" aria-hidden="true" />
-          <span className="app-nav-group-label">explore</span>
-          {EXPLORE.map((l) => (
+          {LINKS.map((l) => (
             <a
               key={l.href}
               href={l.href}
-              data-active={pathname.startsWith(l.href)}
-              className="app-nav-secondary"
+              data-active={
+                "exact" in l && l.exact ? pathname === l.href : pathname.startsWith(l.href)
+              }
             >
               {l.label}
             </a>

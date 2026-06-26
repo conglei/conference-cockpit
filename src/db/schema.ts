@@ -283,9 +283,9 @@ export const talks = sqliteTable(
   "talks",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    speakerId: integer("speaker_id")
-      .notNull()
-      .references(() => people.id),
+    // Nullable: speaker-less agenda items (expo sessions, keynotes/TBA, breaks)
+    // are real sessions with no person to link.
+    speakerId: integer("speaker_id").references(() => people.id),
     /** The speaker's company at the event (denormalized off the speaker). */
     companyId: integer("company_id").references(() => companies.id),
     title: text("title").notNull(),

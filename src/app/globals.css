@@ -156,6 +156,7 @@ code {
   color: var(--fg);
   font-weight: 650;
   letter-spacing: -0.01em;
+  flex-shrink: 0; /* keep the brand intact; the nav scrolls instead */
 }
 .brand:hover {
   color: var(--fg);
@@ -180,13 +181,22 @@ code {
 .app-nav {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.15rem;
+  flex-wrap: nowrap; /* one tidy line — never stack */
+  min-width: 0; /* allow the row to shrink below content width so it can scroll */
+  overflow-x: auto; /* scroll instead of wrapping on narrow screens */
+  scrollbar-width: none; /* Firefox */
+  -webkit-overflow-scrolling: touch;
+}
+.app-nav::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
 }
 .app-nav a {
   font-size: 0.875rem;
   color: var(--muted);
   padding: 0.35rem 0.7rem;
   border-radius: var(--radius-pill);
+  white-space: nowrap;
   transition: color 0.15s ease, background-color 0.15s ease;
 }
 .app-nav a:hover {
@@ -1455,6 +1465,28 @@ main > ul li:hover {
   margin: 0.85rem 0 0;
   font-size: 1rem;
   color: var(--fg-soft);
+}
+/* Collapsible long description: clamp to a few lines until expanded. */
+.brief-tagline[data-clamp="true"] {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.expandable-toggle {
+  margin-top: 0.35rem;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.expandable-toggle:hover {
+  text-decoration: underline;
 }
 .brief-why {
   margin: 0.6rem 0 0;

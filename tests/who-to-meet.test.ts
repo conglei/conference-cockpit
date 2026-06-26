@@ -25,6 +25,7 @@ async function graphFrom(db: Awaited<ReturnType<typeof createTestDb>>): Promise<
   const allTalks = await talks.list();
   const talksBySpeaker = new Map<number, typeof allTalks>();
   for (const t of allTalks) {
+    if (t.speakerId == null) continue;
     const list = talksBySpeaker.get(t.speakerId) ?? [];
     list.push(t);
     talksBySpeaker.set(t.speakerId, list);

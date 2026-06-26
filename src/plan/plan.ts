@@ -99,7 +99,10 @@ export async function loadGraph(db: DB, opts?: { companyId?: number }): Promise<
     allPeople.filter((p) => p.companyId != null),
     (p) => p.companyId as number,
   );
-  const talksBySpeakerId = groupBy(allTalks, (t) => t.speakerId);
+  const talksBySpeakerId = groupBy(
+    allTalks.filter((t) => t.speakerId != null),
+    (t) => t.speakerId as number,
+  );
 
   return {
     companies: allCompanies,
