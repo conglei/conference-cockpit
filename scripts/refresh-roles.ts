@@ -144,6 +144,8 @@ async function runRefresh() {
   const doWebsearch = !has("no-websearch");
   const doLinkedin = !has("no-linkedin");
   const missingOnly = has("missing-only");
+  const linkedinOnly = has("linkedin-only"); // skip ATS discovery, go straight to LinkedIn
+  const skipLarge = has("skip-large"); // exclude scaled enterprises (size_band=large)
   const gatherOut = has("gather") ? argFlag("gather") ?? "data/board-review.json" : undefined;
   const limit = Number(argFlag("limit")) || undefined;
   const only = argFlag("only");
@@ -161,6 +163,7 @@ async function runRefresh() {
 
   const { urlsByCo, idsByCo, atsSourced } = await indexRoles(roles);
   if (missingOnly) all = all.filter((c) => !atsSourced.has(c.id));
+  if (skipLarge) all = all.filter((c) => c.sizeBand !== "large");
 
   const tally = { ats: 0, gathered: 0, linkedin: 0, none: 0, rolesInserted: 0 };
   const byVia: Record<string, number> = {};
@@ -179,7 +182,8 @@ async function runRefresh() {
       };
       try {
         // Trusted tiers only (omit searchProvider → cascade stops before web search).
-        const found = await discoverAtsBoardUrl(input);
+        // Skipped entirely in --linkedin-only mode (the ATS pass already ran).
+        const found = linkedinOnly ? undefined : await discoverAtsBoardUrl(input);
         if (found) {
           byVia[found.via] = (byVia[found.via] ?? 0) + 1;
           tally.ats++;
@@ -195,7 +199,7 @@ async function runRefresh() {
         }
 
         // No trusted board → gather web-search candidates for the agent to judge.
-        if (gatherOut && searchProvider) {
+        if (!linkedinOnly && gatherOut && searchProvider) {
           const candidates = await gatherBoardCandidates(input, { searchProvider });
           if (candidates.length) {
             review.push({
@@ -213,12 +217,20 @@ async function runRefresh() {
         }
 
         if (doLinkedin && (c.linkedinCompanyId || c.linkedinUrl)) {
-          tally.linkedin++;
           if (!dryRun) {
-            for (const id of idsByCo.get(c.id) ?? []) await roles.delete(id);
+            // Insert LinkedIn jobs FIRST, then drop the old (stale Apollo) roles
+            // ONLY if we got something — never empty a company for nothing.
             const r = await findJobsForCompany({ provider: getHarvest(), companies, roles }, c.id);
-            tally.rolesInserted += r.inserted.length;
-            console.log(`✓ ${c.name} → linkedin (${r.inserted.length} new, ${r.filtered} filtered)`);
+            if (r.inserted.length > 0) {
+              const freshIds = new Set(r.inserted.map((role) => role.id));
+              for (const id of idsByCo.get(c.id) ?? []) if (!freshIds.has(id)) await roles.delete(id);
+              tally.linkedin++;
+              tally.rolesInserted += r.inserted.length;
+            }
+            console.log(
+              `${r.inserted.length > 0 ? "✓" : "·"} ${c.name} → linkedin (${r.inserted.length} new, ` +
+                `${r.filtered} filtered${r.inserted.length === 0 ? ", kept existing" : ""})`,
+            );
           } else {
             console.log(`· ${c.name} → would try LinkedIn`);
           }

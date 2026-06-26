@@ -20,7 +20,7 @@ import {
   type EnrichmentProvider,
   type JobSearchResult,
 } from "../providers/types";
-import { isRelevantRole } from "./role-relevance";
+import { isEngineeringOrProductRole } from "./role-relevance";
 
 export interface FindJobsOptions {
   /** Max results to request/insert (passed through to the provider). */
@@ -35,8 +35,9 @@ export interface FindJobsResult {
   /** Companies created as `new`/`google_jobs` stubs to host a role. */
   companiesCreated: Company[];
   /**
-   * Count of candidate roles dropped as non-relevant (non-engineering or
-   * explicitly junior) before dedupe/insert. See {@link isRelevantRole}.
+   * Count of candidate roles dropped as non-relevant (not engineering or
+   * product, or explicitly junior) before dedupe/insert. See
+   * {@link isEngineeringOrProductRole}.
    */
   filtered: number;
   /** Non-fatal diagnostics (e.g. provider degraded gracefully). */
@@ -79,7 +80,7 @@ export async function findJobs(
 
   for (const job of jobs) {
     // Drop non-engineering / explicitly-junior roles before any other work.
-    if (!isRelevantRole(job.title)) {
+    if (!isEngineeringOrProductRole(job.title)) {
       result.filtered += 1;
       continue;
     }
@@ -273,7 +274,7 @@ export async function findJobsForCompany(
   // 4. Insert via dedupe(external_id) → insert, linked directly to this company.
   for (const job of jobs) {
     // Drop non-engineering / explicitly-junior roles before dedupe/insert.
-    if (!isRelevantRole(job.title)) {
+    if (!isEngineeringOrProductRole(job.title)) {
       result.filtered += 1;
       continue;
     }
@@ -349,7 +350,7 @@ export async function findJobsFromAts(
 
   for (const job of jobs) {
     // Drop non-engineering / explicitly-junior roles before dedupe/insert.
-    if (!isRelevantRole(job.title)) {
+    if (!isEngineeringOrProductRole(job.title)) {
       result.filtered += 1;
       continue;
     }
