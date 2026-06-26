@@ -1,4 +1,4 @@
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, count, desc, eq, or, sql } from "drizzle-orm";
 import type { DB } from "./client";
 import {
   companies,
@@ -140,6 +140,49 @@ export function createRoleRepo(db: DB) {
 
     async get(id: number): Promise<Role | undefined> {
       return db.select().from(roles).where(eq(roles.id, id)).get();
+    },
+
+    /**
+     * Projected role list for the roles EXPLORER (cards). Selects only the
+     * columns the card renders and **truncates the description at the DB** —
+     * descriptions are ~half the roles payload (~1 MB across 2,373 rows), and the
+     * card only shows a 2-line preview, so shipping the full text is wasted bytes
+     * over a remote DB. Newest-first, like `list()`.
+     */
+    async listForCards() {
+      return db
+        .select({
+          id: roles.id,
+          companyId: roles.companyId,
+          title: roles.title,
+          url: roles.url,
+          location: roles.location,
+          workType: roles.workType,
+          salary: roles.salary,
+          status: roles.status,
+          source: roles.source,
+          postedDate: roles.postedDate,
+          lastSeenAt: roles.lastSeenAt,
+          updatedAt: roles.updatedAt,
+          description: sql<string | null>`substr(${roles.description}, 1, 220)`,
+        })
+        .from(roles)
+        .orderBy(desc(roles.createdAt))
+        .all();
+    },
+
+    /**
+     * Open-role count per company in ONE grouped query — avoids loading every
+     * role row (with descriptions) just to count, which is expensive over a
+     * remote (Turso) DB. Returns a Map keyed by companyId.
+     */
+    async countsByCompany(): Promise<Map<number, number>> {
+      const rows = await db
+        .select({ companyId: roles.companyId, n: count() })
+        .from(roles)
+        .groupBy(roles.companyId)
+        .all();
+      return new Map(rows.map((r) => [r.companyId, Number(r.n)]));
     },
 
     /**
