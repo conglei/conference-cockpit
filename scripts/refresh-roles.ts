@@ -79,6 +79,7 @@ async function main() {
   const dryRun = has("dry-run");
   const doWebsearch = !has("no-websearch");
   const doLinkedin = !has("no-linkedin");
+  const missingOnly = has("missing-only"); // skip companies already refreshed to ATS
   const limit = Number(argFlag("limit")) || undefined;
   const only = argFlag("only");
 
@@ -98,10 +99,13 @@ async function main() {
   const allRoles = await roles.list();
   const urlsByCo = new Map<number, string[]>();
   const idsByCo = new Map<number, number[]>();
+  const atsSourced = new Set<number>(); // companies already refreshed to ATS
   for (const r of allRoles) {
     if (r.url) (urlsByCo.get(r.companyId) ?? urlsByCo.set(r.companyId, []).get(r.companyId)!).push(r.url);
     (idsByCo.get(r.companyId) ?? idsByCo.set(r.companyId, []).get(r.companyId)!).push(r.id);
+    if (r.source === "ats") atsSourced.add(r.companyId);
   }
+  if (missingOnly) all = all.filter((c) => !atsSourced.has(c.id));
 
   const tally = { ats: 0, websearch: 0, linkedin: 0, none: 0, rolesInserted: 0 };
   const byVia: Record<string, number> = {};
