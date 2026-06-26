@@ -12,7 +12,7 @@
  * none today, but we check anyway rather than orphan the FK). Read-only otherwise.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createRoleRepo } from "../src/db/repository";
 import { createApplicationRepo } from "../src/db/applications-repository";
 import { isRelevantRole } from "../src/roles";
@@ -21,7 +21,7 @@ import { isRelevantRole } from "../src/roles";
 loadEnvFile();
 
 async function main() {
-  const db = createDb(DB_URL);
+  const db = createDb();
   const roles = createRoleRepo(db);
   const applications = createApplicationRepo(db);
 

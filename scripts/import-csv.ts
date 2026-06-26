@@ -19,7 +19,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { createProvider, SearchApiProvider } from "../src/providers";
 import { parseCsv } from "../src/import/csv";
@@ -82,7 +82,7 @@ async function main() {
     );
   }
 
-  const repo = createCompanyRepo(createDb(DB_URL));
+  const repo = createCompanyRepo(createDb());
   const provider = createProvider();
   const searchProvider =
     provider.name !== "searchapi" && process.env.SEARCHAPI_KEY

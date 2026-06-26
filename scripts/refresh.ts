@@ -24,7 +24,7 @@ import { readFile } from "node:fs/promises";
 import { resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { createAppMetaRepo } from "../src/db/app-meta-repository";
 import { createProvider, SearchApiProvider } from "../src/providers";
@@ -108,7 +108,7 @@ async function main() {
     process.exit(1);
   }
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const companies = createCompanyRepo(db);
   const appMeta = createAppMetaRepo(db);
   const provider = createProvider();

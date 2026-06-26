@@ -33,9 +33,14 @@ alongside the existing judgment skills. **No MCP. No raw-SQL surface for the age
 - **The funnel keeps it cheap.** Coarse, projected search → narrow → `get` detail
   on ~the shortlist. A query returns ≤ `MAX_LIMIT` (50) rows of minimal fields,
   never the table, never full bios/descriptions in a list.
-- **Read-only by construction.** The CLI opens the DB with
-  `createReadOnlyDb` (`better-sqlite3 { readonly: true }`) — the connection
-  *physically cannot* mutate. Exploration can never corrupt data.
+- **Read-only at the seam.** The CLI opens the DB with `createReadOnlyDb`, which
+  wraps the connection in a Proxy that throws on every mutating Drizzle method
+  (`insert` / `update` / `delete` / `run` / `batch` / `transaction`) while passing
+  reads through. The query module only ever reads, so exploration cannot drive a
+  write. (libSQL has no connection-level read-only flag, so this is enforced at
+  the application seam rather than the transport — unlike the original
+  `better-sqlite3 { readonly: true }`. In the cloud, pair it with a read-only
+  Turso token for a second, transport-level line of defense.)
 - **Writes stay on narrow, deliberate verbs.** Saving / met-logging is
   `conf-followup target | met` (single-person, never bulk-destructive). There is
   no general update/delete surface, and — per the standing rule — **no send path**.

@@ -10,6 +10,7 @@ import type { PersonRepo } from "../db/people-repository";
 import type { CompanyRepo, RoleRepo } from "../db/repository";
 import type { TalkRepo } from "../db/talk-repository";
 import type { Company, Person, Role } from "../db/schema";
+import { asList, cleanText } from "../db/columns";
 import {
   companyFundingProvenance,
   companyIdentityProvenance,
@@ -37,33 +38,6 @@ function offsetOf(cursor: number | string | undefined): number {
   const n = Number(cursor);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
-function asList(v: string | null | undefined): string[] {
-  if (!v) return [];
-  try {
-    const p = JSON.parse(v);
-    if (Array.isArray(p)) return p.map(String).filter(Boolean);
-  } catch {
-    /* not json */
-  }
-  return v.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
-}
-/** Role descriptions can be (double-)encoded HTML — decode + strip to prose. */
-function cleanText(s: string | null): string | null {
-  if (!s) return null;
-  const t = s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return t || null;
-}
-
 /** Cap + paginate; every search returns this envelope so the agent can page. */
 function page<T>(rows: T[], limit: number | undefined, cursor: number | string | undefined) {
   const off = offsetOf(cursor);

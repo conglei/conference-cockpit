@@ -20,7 +20,11 @@
 import { createClient, type Row } from "@libsql/client";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { DB_URL } from "../src/db/client";
+import { loadEnvFile } from "../src/onboarding/load-env";
+import { resolveDbUrl } from "../src/db/client";
+
+// Honor a DATABASE_URL from .env.local (an explicit shell var still wins).
+loadEnvFile();
 
 /** Mirror the driver's URL mapping so bare paths become file: URLs. */
 function toLibsqlUrl(url: string): string {
@@ -36,7 +40,7 @@ function toPlain(row: Row): Record<string, unknown> {
 }
 
 const client = createClient({
-  url: toLibsqlUrl(DB_URL),
+  url: toLibsqlUrl(resolveDbUrl()),
   authToken: process.env.TURSO_AUTH_TOKEN ?? process.env.LIBSQL_AUTH_TOKEN,
 });
 

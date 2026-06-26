@@ -7,6 +7,21 @@ export * from "./types";
 export { buildPlan, loadGraph, graphHasScores, DEFAULT_PLAN_LIMIT } from "./plan";
 export { loadGoalProfile } from "./profile";
 export { careerMoverLens } from "./career-mover";
+export {
+  planWhoToMeet,
+  DEFAULT_WHO_TO_MEET_LIMIT,
+  type WhoToMeetQuery,
+  type WhoToMeetView,
+} from "./who-to-meet-plan";
+export {
+  OBJECTIVES,
+  getObjective,
+  rankPeople,
+  extractBackground,
+  type Objective,
+  type PeopleGraph,
+  type UserBackground,
+} from "./who-to-meet";
 
 import type { Lens } from "./types";
 import { careerMoverLens } from "./career-mover";

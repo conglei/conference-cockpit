@@ -13,7 +13,12 @@ import { mkdirSync } from "node:fs";
 import { readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { ensureDb } from "../src/onboarding/ensure-db";
-import { DB_URL } from "../src/db/client";
+import { loadEnvFile } from "../src/onboarding/load-env";
+import { resolveDbUrl } from "../src/db/client";
+
+// Honor a configured DATABASE_URL (e.g. Turso) from .env.local — otherwise seed
+// only ever targets the local file fallback.
+loadEnvFile();
 
 const TABLES = ["companies", "people", "talks", "roles"] as const;
 
@@ -43,7 +48,7 @@ async function insertAll(
 
 async function main() {
   const force = process.argv.includes("--force");
-  const url = DB_URL;
+  const url = resolveDbUrl();
 
   // Schema first (idempotent), then a raw client for fast bulk insert.
   await ensureDb(url);

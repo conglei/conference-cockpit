@@ -14,7 +14,7 @@
  * degrade gracefully with a note. Cost ~$0.0064/profile (HarvestAPI).
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createCompanyRepo } from "../src/db/repository";
 import { createProvider } from "../src/providers";
@@ -49,7 +49,7 @@ async function main() {
 
   const slugs = args;
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const people = createPersonRepo(db);
   const companies = createCompanyRepo(db);
 

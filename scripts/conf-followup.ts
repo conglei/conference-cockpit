@@ -9,7 +9,7 @@
  *   pnpm conf-followup log <personId> <contacted|replied|bounced>
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createCompanyRepo } from "../src/db/repository";
 import { logMet, logTarget, followupQueue, draftFollowup } from "../src/followup";
@@ -29,7 +29,7 @@ function flag(name: string): string | undefined {
 
 async function main() {
   const [cmd, idArg, statusArg] = process.argv.slice(2);
-  const db = createDb(DB_URL);
+  const db = createDb();
   const people = createPersonRepo(db);
   const companies = createCompanyRepo(db);
   const summary = loadGoalProfile().summary;

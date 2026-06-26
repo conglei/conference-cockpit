@@ -28,7 +28,8 @@ import {
   ingestResumeFromPath,
   scaffoldProfileDocs,
 } from "../src/onboarding/profile";
-import { DB_URL } from "../src/db/client";
+import { loadEnvFile } from "../src/onboarding/load-env";
+import { resolveDbUrl } from "../src/db/client";
 
 function getArg(name: string): string | undefined {
   const flag = `--${name}`;
@@ -47,6 +48,9 @@ function readStdin(): string {
 }
 
 async function main(): Promise<void> {
+  // Honor a configured DATABASE_URL (e.g. Turso) so ensure-db targets the right
+  // DB, not just the local file fallback.
+  loadEnvFile();
   console.log("Onboarding — Conference Compass\n");
 
   // 1. Résumé ingest (optional; skip if no input given).
@@ -78,7 +82,7 @@ async function main(): Promise<void> {
 
   // 3. Ensure the DB exists / is migrated (idempotent). No CSV seeding here.
   ensureDb();
-  console.log(`· database: migrated/ensured at ${DB_URL}.`);
+  console.log(`· database: migrated/ensured at ${resolveDbUrl()}.`);
 
   // 4. Env-check readout.
   console.log("");

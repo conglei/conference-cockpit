@@ -4,7 +4,15 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import * as schema from "./schema";
 
-export const DB_URL = process.env.DATABASE_URL ?? "data/conference.db";
+/**
+ * Resolve the DB URL from the environment, READ AT CALL TIME. This must be lazy:
+ * CLIs call `loadEnvFile()` *after* importing this module, so `process.env.DATABASE_URL`
+ * is not yet populated at import time. An eager `const DB_URL = process.env…` froze
+ * to the local fallback and made every CLI silently ignore a configured Turso URL.
+ */
+export function resolveDbUrl(): string {
+  return process.env.DATABASE_URL ?? "data/conference.db";
+}
 
 /** libsql needs a URL scheme. Map bare paths → file:, pass schemes through. */
 function toLibsqlUrl(url: string): string {
@@ -14,7 +22,7 @@ function toLibsqlUrl(url: string): string {
   return `file:${url}`;
 }
 
-export function createDb(url: string = DB_URL) {
+export function createDb(url: string = resolveDbUrl()) {
   const client = createClient({
     url: toLibsqlUrl(url),
     authToken: process.env.TURSO_AUTH_TOKEN ?? process.env.LIBSQL_AUTH_TOKEN,
@@ -23,11 +31,33 @@ export function createDb(url: string = DB_URL) {
 }
 export type DB = ReturnType<typeof createDb>;
 
-// libsql has no read-only connection flag; the query CLI's safety now rests on
-// the query module being write-free (see ADR-0005). Optionally a read-only Turso
-// token enforces it in the cloud. Alias for now.
-export function createReadOnlyDb(url: string = DB_URL) {
-  return createDb(url);
+/**
+ * The mutating entry points on the Drizzle handle. The agent's query path
+ * (`src/query`) only ever reads (`.select()` / `.query`), so blocking these at
+ * the seam makes a read-only handle that *cannot* drive a write — restoring the
+ * ADR-0005 invariant the libSQL migration dropped (libSQL has no connection-level
+ * read-only flag, unlike better-sqlite3's `{ readonly: true }`).
+ */
+const WRITE_METHODS = new Set(["insert", "update", "delete", "run", "batch", "transaction"]);
+
+/**
+ * A read-only DB handle for exploration (the `query` CLI, ADR-0005). Reads pass
+ * through to a normal connection; any write method throws. This is enforcement at
+ * the application seam, not the transport — in the cloud, pair it with a
+ * read-only Turso token (`turso db tokens create --read-only`) for a second line.
+ */
+export function createReadOnlyDb(url: string = resolveDbUrl()): DB {
+  const db = createDb(url);
+  return new Proxy(db, {
+    get(target, prop, receiver) {
+      if (typeof prop === "string" && WRITE_METHODS.has(prop)) {
+        return () => {
+          throw new Error(`read-only DB: '${prop}' is blocked (ADR-0005)`);
+        };
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as DB;
 }
 
 // Lazy singleton for the app/CLIs (tests create their own isolated DBs).

@@ -7,7 +7,7 @@
  *   pnpm similar-speakers "Abridge" --k 8
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createSpeakerEmbeddingRepo } from "../src/db/speaker-embedding-repository";
 import { nearestToSpeaker } from "../src/speakers/semantic-search";
 
@@ -27,7 +27,7 @@ async function main() {
     process.exit(1);
   }
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const repo = createSpeakerEmbeddingRepo(db);
 
   // Resolve the seed: exact external id, else first name/company substring match.

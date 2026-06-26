@@ -10,14 +10,14 @@
  * before identity-anchored enrichment can proceed.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 
 // tsx does not auto-load .env.local; do it before touching the DB.
 loadEnvFile();
 
 async function main() {
-  const repo = createCompanyRepo(createDb(DB_URL));
+  const repo = createCompanyRepo(createDb());
 
   // Null domain == unresolved (no new column/status — ADR-0003 §1).
   const unresolved = (await repo.list()).filter((c) => !c.domain);

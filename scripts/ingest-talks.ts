@@ -11,7 +11,7 @@
  */
 import { readFileSync } from "node:fs";
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createTalkRepo } from "../src/db/talk-repository";
 import { ingestTalks, type AgendaSpeaker } from "../src/talks/ingest";
@@ -24,7 +24,7 @@ async function main() {
     conference?: string;
     speakers: AgendaSpeaker[];
   };
-  const db = createDb(DB_URL);
+  const db = createDb();
   const res = await ingestTalks(
     { people: createPersonRepo(db), talks: createTalkRepo(db) },
     data.speakers,

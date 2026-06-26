@@ -14,7 +14,7 @@
  * is required.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { ApolloProvider } from "../src/providers/apollo";
 import { getResponseCache } from "../src/providers/cache";
@@ -40,7 +40,7 @@ async function main() {
     args.splice(concFlag, 2);
   }
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const companies = createCompanyRepo(db);
   const cache = getResponseCache();
 

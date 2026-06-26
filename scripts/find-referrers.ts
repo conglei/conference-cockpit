@@ -18,7 +18,7 @@
  */
 import { readFileSync } from "node:fs";
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createProvider } from "../src/providers";
@@ -35,7 +35,7 @@ loadEnvFile();
 async function main() {
   const args = process.argv.slice(2);
   const cmd = args[0];
-  const db = createDb(DB_URL);
+  const db = createDb();
   const people = createPersonRepo(db);
   const companies = createCompanyRepo(db);
 

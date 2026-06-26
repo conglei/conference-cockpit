@@ -7,7 +7,7 @@
  *   pnpm conf-brief --lens career-mover resolve-ai
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { loadGraph, loadGoalProfile, getLens } from "../src/plan";
 import { formatChip } from "../src/provenance";
@@ -27,7 +27,7 @@ async function main() {
     process.exit(1);
   }
   const lens = getLens(arg("lens") ?? "career-mover")!;
-  const db = createDb(DB_URL);
+  const db = createDb();
   const company = await createCompanyRepo(db).getBySlug(slug);
   if (!company) {
     console.error(`No company with slug "${slug}".`);

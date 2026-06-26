@@ -12,7 +12,7 @@
  * does no browser automation.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { createPersonRepo } from "../src/db/people-repository";
 import { needsFounders } from "../src/enrich/needs-founders";
@@ -22,7 +22,7 @@ import type { Person } from "../src/db/schema";
 loadEnvFile();
 
 async function main() {
-  const db = createDb(DB_URL);
+  const db = createDb();
   const companyRepo = createCompanyRepo(db);
   const peopleRepo = createPersonRepo(db);
 

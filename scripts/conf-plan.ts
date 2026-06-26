@@ -9,7 +9,7 @@
  *   pnpm conf-plan --lens career-mover
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import {
   buildPlan,
   loadGraph,
@@ -36,7 +36,7 @@ async function main() {
     process.exit(1);
   }
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const plan = buildPlan({
     lens,
     profile: loadGoalProfile(),

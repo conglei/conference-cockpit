@@ -13,7 +13,7 @@
  * Statuses: interested · applied · referred · screening · interviewing · offer
  *           · rejected · withdrawn
  */
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createApplicationRepo } from "../src/db/applications-repository";
 import { track, setNextAction, isApplicationStatus } from "../src/track";
 
@@ -24,7 +24,7 @@ function fail(msg: string): never {
 
 async function main() {
   const [cmd, ...args] = process.argv.slice(2);
-  const repo = createApplicationRepo(createDb(DB_URL));
+  const repo = createApplicationRepo(createDb());
 
   switch (cmd) {
     case "list": {

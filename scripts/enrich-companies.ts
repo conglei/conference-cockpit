@@ -14,7 +14,7 @@
  * defaults to fake (offline). Missing keys degrade gracefully with a note.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { COMPANY_STATUS, type CompanyStatus } from "../src/db/schema";
 import { createProvider } from "../src/providers";
@@ -58,7 +58,7 @@ async function main() {
 
   const slugs = args; // any remaining positionals are slugs
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const companies = createCompanyRepo(db);
 
   let targets;

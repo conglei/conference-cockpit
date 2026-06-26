@@ -19,7 +19,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { parseCsv } from "../src/import/csv";
 import { normalizeName, recoverDomains } from "../src/providers/recover-domains";
@@ -50,7 +50,7 @@ async function main() {
     process.exit(1);
   }
 
-  const companies = createCompanyRepo(createDb(DB_URL));
+  const companies = createCompanyRepo(createDb());
   console.log(
     `Crawling aggregator pages from "${csvPath}" (${nameToAggregatorUrl.size} URLs)…`,
   );

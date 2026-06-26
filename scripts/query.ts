@@ -12,7 +12,7 @@
  *   …append --json for machine output.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createReadOnlyDb, DB_URL } from "../src/db/client";
+import { createReadOnlyDb } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createCompanyRepo, createRoleRepo } from "../src/db/repository";
 import { createTalkRepo } from "../src/db/talk-repository";
@@ -49,7 +49,7 @@ function out(result: unknown): void {
 
 async function main(): Promise<void> {
   const [cmd, sub, id] = argv.filter((a) => !a.startsWith("--"));
-  const db = createReadOnlyDb(DB_URL); // read-only: this CLI cannot write.
+  const db = createReadOnlyDb(); // read-only: this CLI cannot write.
   const repos: QueryRepos = {
     people: createPersonRepo(db),
     companies: createCompanyRepo(db),

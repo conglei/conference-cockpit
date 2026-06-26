@@ -18,7 +18,7 @@
  */
 import { readFileSync } from "node:fs";
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import {
   FakeScorer,
@@ -40,7 +40,7 @@ function readOptional(path: string): string | undefined {
 
 async function main() {
   const slug = process.argv[2] && !process.argv[2].startsWith("-") ? process.argv[2] : undefined;
-  const repo = createCompanyRepo(createDb(DB_URL));
+  const repo = createCompanyRepo(createDb());
 
   const { weights, prefilter: criteria, text: preferences } = loadPreferences();
   const narrative = readOptional("profile/narrative.md");

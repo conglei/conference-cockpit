@@ -24,7 +24,7 @@
  * keys degrade gracefully with an actionable note.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo, createRoleRepo } from "../src/db/repository";
 import { COMPANY_STATUS } from "../src/db/schema";
 import { detectAts } from "../src/providers/ats";
@@ -66,7 +66,7 @@ async function main() {
     args.splice(funnelFlag, 1);
   }
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const companies = createCompanyRepo(db);
   const roles = createRoleRepo(db);
 

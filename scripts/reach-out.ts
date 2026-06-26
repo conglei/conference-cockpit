@@ -22,7 +22,7 @@
  *     --next "await intro" --next-date 2026-06-30
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createApplicationRepo } from "../src/db/applications-repository";
 import { logOutreach, LOGGABLE_OUTREACH_STATUSES } from "../src/outreach";
@@ -55,7 +55,7 @@ async function main() {
   const args = process.argv.slice(2);
   if (args[0] !== "log") usage();
 
-  const db = createDb(DB_URL);
+  const db = createDb();
   const people = createPersonRepo(db);
   const applications = createApplicationRepo(db);
 

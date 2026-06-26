@@ -14,7 +14,7 @@
  * in .env.local (defaults to fake). Missing keys degrade gracefully.
  */
 import { loadEnvFile } from "../src/onboarding/load-env";
-import { createDb, DB_URL } from "../src/db/client";
+import { createDb } from "../src/db/client";
 import { createCompanyRepo } from "../src/db/repository";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createProvider, SearchApiProvider } from "../src/providers";
@@ -26,7 +26,7 @@ loadEnvFile();
 
 async function main() {
   const slugs = process.argv.slice(2);
-  const db = createDb(DB_URL);
+  const db = createDb();
   const companies = createCompanyRepo(db);
   const people = createPersonRepo(db);
 

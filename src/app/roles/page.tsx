@@ -1,4 +1,5 @@
 import { getDb } from "@/db/client";
+import { cleanText } from "@/db/columns";
 import { createCompanyRepo, createRoleRepo } from "@/db/repository";
 import { roleProvenance, formatChip, isThin } from "@/provenance";
 import RolesExplorer, { type RoleRow } from "../_components/RolesTable";
@@ -9,23 +10,6 @@ export const dynamic = "force-dynamic";
 
 function isSortKey(v: string | undefined): v is RoleSortKey {
   return !!v && (ROLE_SORT_KEYS as readonly string[]).includes(v);
-}
-
-/** Some role descriptions arrive as (entity-encoded) HTML — decode + strip to prose. */
-function cleanDescription(s: string | null): string | null {
-  if (!s) return null;
-  const t = s
-    .replace(/&amp;/g, "&") // collapse one level first (descriptions are double-encoded)
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&") // any remaining from &amp;amp;
-    .replace(/<[^>]+>/g, " ") // strip tags (now decoded)
-    .replace(/\s+/g, " ")
-    .trim();
-  return t || null;
 }
 
 export default async function RolesPage({
@@ -68,7 +52,7 @@ export default async function RolesPage({
       location: r.location,
       workType: r.workType,
       salary: r.salary,
-      description: cleanDescription(r.description),
+      description: cleanText(r.description),
       postedDate: r.postedDate,
       status: r.status,
       source: r.source,

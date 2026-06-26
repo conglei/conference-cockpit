@@ -347,6 +347,7 @@ function shape(s: Scored, rank: number, now: Date): PlannedPerson {
     personId: s.person.id,
     slug: s.person.slug,
     name: s.person.name,
+    photoUrl: s.person.photoUrl ?? null,
     headline: s.person.headline ?? s.person.title,
     currentCompany: s.person.currentCompany ?? s.company?.name ?? null,
     companyId: s.person.companyId,
