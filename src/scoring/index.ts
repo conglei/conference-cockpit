@@ -50,9 +50,12 @@ export {
 } from "./apply";
 
 export {
-  founderPedigree,
-  clearsFounderBar,
+  // Generic, taste-neutral fact extractors (reusable by any persona):
+  pastEmployers,
+  educationSummary,
   isFounderTitle,
+  // Career Mover pedigree heuristic (ONE persona's taste; used by who-to-meet):
+  founderPedigree,
   type Pedigree,
 } from "./pedigree";
 

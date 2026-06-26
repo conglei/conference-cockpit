@@ -1,19 +1,21 @@
 /**
  * Assemble the **per-company scoring context** the `score-companies` skill judges
- * over — firmographics + funding + founders-with-pedigree + open-role titles, in
+ * over — firmographics + funding + founders-with-RAW-FACTS + open-role titles, in
  * ONE pass. This is the reusable version of the ad-hoc "dump" you'd otherwise
  * hand-write before ranking: the agent calls it once instead of N `get` lookups,
  * then reasons over the result and pipes its judgment to `score apply`.
  *
- * Pure over the repos (fully unit-testable); the `score context` CLI is a thin
- * adapter. The founder bar comes from the shared `founderPedigree` primitive, so
- * it stays consistent with the people ranker.
+ * TASTE-NEUTRAL by design: each founder carries their *raw* past employers +
+ * education (facts), NOT a pre-judged "founder bar" verdict — so any persona
+ * (career-mover, recruiter, investor, learner) applies its OWN bar over the same
+ * context. Pure over the repos (fully unit-testable); `score context` is a thin
+ * adapter.
  */
 import type { CompanyRepo, RoleRepo } from "../db/repository";
 import type { PersonRepo } from "../db/people-repository";
 import type { Person } from "../db/schema";
 import { asList } from "../db/columns";
-import { founderPedigree, isFounderTitle } from "./pedigree";
+import { pastEmployers, educationSummary, isFounderTitle } from "./pedigree";
 
 export interface ScoringContextCompany {
   slug: string;
@@ -25,8 +27,8 @@ export interface ScoringContextCompany {
   verticals: string[];
   sizeBand: string | null;
   funding: { round: string | null; amount: string | null; total: string | null; lead: string | null };
-  /** Founders with their founder-bar flags (e.g. ["ex-OpenAI","PhD/research"]). */
-  founders: { name: string; title: string | null; pedigree: string[] }[];
+  /** Founders with RAW facts — apply your own bar over these, not a pre-judged one. */
+  founders: { name: string; title: string | null; pastEmployers: string[]; education: string | null }[];
   /** A sample of open-role titles (for domain / role-fit judgment). */
   openRoleTitles: string[];
   description: string | null;
@@ -79,12 +81,8 @@ export async function buildScoringContext(
     founders: (foundersByCo.get(c.id) ?? []).slice(0, 4).map((p: Person) => ({
       name: p.name,
       title: p.title,
-      pedigree: founderPedigree({
-        workHistory: p.workHistory,
-        education: p.education,
-        headline: p.headline,
-        currentName: p.currentCompany ?? c.name,
-      }).flags,
+      pastEmployers: pastEmployers(p.workHistory, p.currentCompany ?? c.name).slice(0, 5),
+      education: educationSummary(p.education),
     })),
     openRoleTitles: (roleTitlesByCo.get(c.id) ?? []).slice(0, 8).map((r) => r.title),
     description: c.description ? c.description.slice(0, 200) : null,

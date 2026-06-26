@@ -51,10 +51,10 @@ describe("buildScoringContext (per-company judgment bundle)", () => {
     expect(acme.funding.lead).toBe("Sequoia");
     expect(acme.verticals).toEqual(["Agentic Engineering"]);
     expect(acme.openRoleTitles).toEqual(["Founding Engineer"]);
-    // only the founder is listed, with the founder-bar flags derived
+    // only the founder is listed, with RAW facts (no pre-judged "founder bar")
     expect(acme.founders.map((f) => f.name)).toEqual(["Ada"]);
-    expect(acme.founders[0].pedigree).toContain("ex-OpenAI");
-    expect(acme.founders[0].pedigree).toContain("PhD/research");
+    expect(acme.founders[0].pastEmployers).toContain("OpenAI");
+    expect(acme.founders[0].education).toMatch(/PhD/);
   });
 
   it("supports vertical + hiring filters", async () => {

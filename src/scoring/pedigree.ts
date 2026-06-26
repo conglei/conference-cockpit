@@ -1,22 +1,17 @@
 /**
- * The **founder bar** primitive: derive prestige/pedigree signal from a person's
- * work history + education. This is the shared core of taste-ranking — both the
- * people ranker (`who-to-meet`) and the company scoring-context use it, so the
- * vocabulary and the "PAST employers only" rule live in exactly one place.
+ * People facts for taste-ranking, split into two layers:
+ *
+ *   1. **Generic fact extractors** (taste-neutral, reusable by ANY persona) —
+ *      raw past employers, an education summary, and "is this person a founder".
+ *      These surface *facts*; they make no judgment about what's "good".
+ *   2. **The Career Mover pedigree heuristic** (`founderPedigree`) — ONE persona's
+ *      taste (a "founder bar" prizing top-lab / big-tech / research pedigree).
+ *      This is NOT universal: it's the default Career Mover lens used by
+ *      `who-to-meet`. Other personas (recruiter, investor, learner) judge
+ *      differently and should read the raw facts above, not this.
  *
  * Pure string logic over plain fields — no DB, fully unit-testable.
  */
-
-/** Top AI labs — the strongest pedigree signal (substring match, lower-cased). */
-export const TOP_LABS = ["openai", "deepmind", "google brain", "fair", "meta ai", "anthropic"];
-/** Big-tech / prestige operators (substring match, lower-cased). */
-export const BIG_TECH = [
-  "google", "meta", "facebook", "amazon", "aws", "microsoft", "apple", "nvidia",
-  "stripe", "airbnb", "uber", "netflix", "databricks", "salesforce", "tesla", "linkedin",
-];
-const RESEARCH = ["phd", "ph.d", "doctor of philosophy"];
-const RESEARCH_TITLE = ["professor", "research scientist", "phd", "faculty"];
-const FOUNDER_EXEC = ["founder", "co-founder", "cofounder", "ceo", "cto", "chief"];
 
 /** First needle that appears in the haystack (lower-cased substring), if any. */
 export function has(hay: string | null | undefined, needles: string[]): string | undefined {
@@ -25,7 +20,7 @@ export function has(hay: string | null | undefined, needles: string[]): string |
   return needles.find((n) => h.includes(n));
 }
 
-/** Parsed work_history entries (lower-cased company + end label). */
+/** Parsed work_history entries (lower-cased company + end label) — for matching. */
 export function workEntries(workHistory: string | null): Array<{ company: string; end: string }> {
   if (!workHistory) return [];
   try {
@@ -38,11 +33,67 @@ export function workEntries(workHistory: string | null): Array<{ company: string
   }
 }
 
+// ===================== Generic fact extractors (taste-neutral) =====================
+
 /**
- * PAST employers only — excludes the current company and any still-current role
- * ("Present"). "ex-OpenAI" must never fire for someone *currently* at OpenAI.
+ * PAST employer names (original case) — excludes the current company and any
+ * still-current ("Present") role. A FACT, not a judgment: the caller decides
+ * whether "ex-OpenAI" matters for their taste.
  */
-export function pastCompanies(workHistory: string | null, currentName: string): string {
+export function pastEmployers(workHistory: string | null, currentName: string): string[] {
+  if (!workHistory) return [];
+  const cur = (currentName ?? "").toLowerCase();
+  try {
+    const arr = JSON.parse(workHistory) as Array<{ company?: string; end?: string }>;
+    return arr
+      .map((e) => ({ c: (e.company ?? "").trim(), end: (e.end ?? "").toLowerCase() }))
+      .filter(
+        (e) =>
+          e.c &&
+          e.end !== "present" &&
+          !(cur && (e.c.toLowerCase().includes(cur) || cur.includes(e.c.toLowerCase()))),
+      )
+      .map((e) => e.c);
+  } catch {
+    return [];
+  }
+}
+
+/** A compact, human-readable education summary (degree — field — school). FACT. */
+export function educationSummary(education: string | null): string | null {
+  if (!education) return null;
+  try {
+    const arr = JSON.parse(education) as Array<{ school?: string; degree?: string; field?: string }>;
+    const parts = arr
+      .map((e) => [e.degree, e.field, e.school].filter(Boolean).join(" — "))
+      .filter(Boolean);
+    return parts.length ? parts.join("; ") : null;
+  } catch {
+    return education.slice(0, 140);
+  }
+}
+
+/** Is this person a founder/exec of their company (by title or headline)? FACT. */
+const FOUNDER_EXEC = ["founder", "co-founder", "cofounder", "ceo", "cto", "chief"];
+export function isFounderTitle(title: string | null | undefined, headline?: string | null): boolean {
+  return Boolean(has(title, FOUNDER_EXEC) || has(headline, FOUNDER_EXEC));
+}
+
+// ============== Career Mover pedigree heuristic (ONE persona's taste) ==============
+// The "founder bar": prizes PAST top-lab / big-tech employers + a research
+// background. This encodes the Career Mover lens specifically; it is not a
+// universal ranking rule. Used by `who-to-meet`.
+
+const TOP_LABS = ["openai", "deepmind", "google brain", "fair", "meta ai", "anthropic"];
+const BIG_TECH = [
+  "google", "meta", "facebook", "amazon", "aws", "microsoft", "apple", "nvidia",
+  "stripe", "airbnb", "uber", "netflix", "databricks", "salesforce", "tesla", "linkedin",
+];
+const RESEARCH = ["phd", "ph.d", "doctor of philosophy"];
+const RESEARCH_TITLE = ["professor", "research scientist", "phd", "faculty"];
+
+/** PAST employers as a single lower-cased string (for the Career Mover bar match). */
+function pastCompaniesLower(workHistory: string | null, currentName: string): string {
   const cur = currentName.toLowerCase();
   return workEntries(workHistory)
     .filter((e) => e.end !== "present" && !(cur && (e.company.includes(cur) || cur.includes(e.company))))
@@ -50,11 +101,8 @@ export function pastCompanies(workHistory: string | null, currentName: string): 
     .join(" | ");
 }
 
-/** The founder-bar signal for one person, structured + as display flags. */
 export interface Pedigree {
-  /** Proper-cased ex-top-lab org (e.g. "OpenAI"), if any. */
   topLab?: string;
-  /** Proper-cased ex-big-tech org, if any (only when not a top lab). */
   bigTech?: string;
   research: boolean;
   founderExec: boolean;
@@ -65,15 +113,13 @@ export interface Pedigree {
 export interface PedigreeInput {
   workHistory: string | null;
   education: string | null;
-  /** LinkedIn headline (or title) — carries research-title + founder/exec signal. */
   headline: string | null;
-  /** The person's CURRENT company name, so past-only excludes it. */
   currentName: string;
 }
 
-/** Derive the founder-bar pedigree (the dominant axis of the Career Mover taste). */
+/** The Career Mover "founder bar" signal for one person (one persona's taste). */
 export function founderPedigree(input: PedigreeInput): Pedigree {
-  const past = pastCompanies(input.workHistory, input.currentName);
+  const past = pastCompaniesLower(input.workHistory, input.currentName);
   const lab = has(past, TOP_LABS);
   const big = !lab ? has(past, BIG_TECH) : undefined;
   const research = !!(has(input.education, RESEARCH) || has(input.headline, RESEARCH_TITLE));
@@ -90,16 +136,6 @@ export function founderPedigree(input: PedigreeInput): Pedigree {
   return { topLab, bigTech, research, founderExec, flags };
 }
 
-/** Does this pedigree clear the founder bar — a top-lab/big-tech operator OR a serious researcher? */
-export function clearsFounderBar(p: Pedigree): boolean {
-  return Boolean(p.topLab || p.bigTech || p.research);
-}
-
-/** Is this person a founder/exec of their company (by title or headline)? */
-export function isFounderTitle(title: string | null | undefined, headline?: string | null): boolean {
-  return Boolean(has(title, FOUNDER_EXEC) || has(headline, FOUNDER_EXEC));
-}
-
 /** Proper-cased labels for pedigree orgs (acronyms/camelCase done right). */
 const ORG_LABELS: Record<string, string> = {
   openai: "OpenAI", deepmind: "DeepMind", "google brain": "Google Brain", fair: "FAIR",
@@ -108,12 +144,8 @@ const ORG_LABELS: Record<string, string> = {
   nvidia: "Nvidia", stripe: "Stripe", airbnb: "Airbnb", uber: "Uber", netflix: "Netflix",
   databricks: "Databricks", salesforce: "Salesforce", tesla: "Tesla", linkedin: "LinkedIn",
 };
-export const prettyOrg = (token: string): string => ORG_LABELS[token] ?? titleCase(token);
-
+const prettyOrg = (token: string): string => ORG_LABELS[token] ?? titleCase(token);
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 function titleCase(s: string): string {
-  return s
-    .split(" ")
-    .map((w) => (w === "ai" ? "AI" : cap(w)))
-    .join(" ");
+  return s.split(" ").map((w) => (w === "ai" ? "AI" : cap(w))).join(" ");
 }

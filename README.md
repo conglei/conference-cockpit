@@ -285,6 +285,25 @@ blank, so re-running only fills gaps.
 
 ---
 
+## Data & provenance
+
+The base — companies, speakers, and the schedule — comes from the public **AI
+Engineer World's Fair 2026** program. On top of that, an enrichment pass fills in
+**public professional data only**:
+
+- **Companies** — firmographics + funding + founders (via Apollo).
+- **People** — LinkedIn-style public profile (work history, education, headline, bio).
+- **Open roles** — per company, **except job listings for the largest employers**
+  (e.g. Google) — those were skipped this round.
+
+It's a **point-in-time snapshot**: every enriched field carries a `source · as of`
+chip, and a thin/unverifiable signal is labeled, not dressed up. No private data,
+no scraping behind logins.
+
+**Removal / opt-out.** Everything here is public, but if you're an individual in
+this dataset and would like to be removed, please **open a GitHub issue** on this
+repo (or contact the maintainer) — we'll take you out promptly.
+
 ## Hard rules
 
 - **Drafts only — no send path.** The system records what happened and writes

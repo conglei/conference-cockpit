@@ -39,8 +39,10 @@ signal, decide the scores, and pipe them to a thin persistence CLI.
    ```bash
    pnpm score context --hiring --json              # or --vertical "AI in Healthcare" / --limit N
    ```
-   Each row already carries `founders[].pedigree` (e.g. `["ex-OpenAI","PhD/research"]`)
-   — read it to apply the founder bar without further lookups.
+   Each row carries each founder's **raw facts** — `pastEmployers` + `education`
+   (e.g. `["OpenAI"]`, `"PhD — CS — MIT"`) — NOT a pre-judged verdict. You apply
+   the user's own bar over these facts (theirs may prize research, or operators,
+   or domain experience — read `preferences.md`).
 
 3. **Narrow to what matters.** Your taste is usually exclusionary (a hard
    pre-filter + a strict founder bar), so drop off-stage / off-location / off-domain
@@ -52,17 +54,18 @@ signal, decide the scores, and pipe them to a thin persistence CLI.
    fabricated 0), plus a one-line `rationale` and an optional structured
    `verdict`. Weigh them against `preferences.md`:
 
-   | Axis | What you're judging |
+   | Axis | What you're judging — *as the user's `preferences.md` defines "good"* |
    | --- | --- |
-   | `founder_quality` | founders' track record — prior exits, top-lab / big-tech, repeat founder. **`null` if no founder data.** |
-   | `investor_quality` | caliber of the lead investor / cap table. **`null` if no funding data.** |
-   | `domain_fit` | match to the user's target domains/verticals |
+   | `founder_quality` | how well the founders match the user's bar (e.g. a "founder bar" prizing top-lab/big-tech/research; or operators; or domain experts — whatever they wrote). **`null` if no founder data.** |
+   | `investor_quality` | caliber of the lead investor / cap table, per their taste. **`null` if no funding data.** |
+   | `domain_fit` | match to the user's target domains/verticals (and pass-list) |
    | `stage_fit` | match to the user's preferred stage |
-   | `size_fit` | match to the user's preferred company size (this cockpit favors smaller) |
+   | `size_fit` | match to the user's preferred company size |
 
-   `founder_quality` and `investor_quality` are **co-dominant** (the engine
-   discounts a company you can't actually evaluate). Honor the user's weights:
-   if they down-weight an axis, let it matter less in your rationale.
+   There is **no universal bar** — what makes `founder_quality` high is whatever
+   the user's `preferences.md` says, applied to the raw founder facts. The default
+   weights make `founder_quality` + `investor_quality` co-dominant (the engine
+   discounts a company you can't fully evaluate); honor the user's actual weights.
 
 5. **Persist** — emit a JSON array and pipe it in (do NOT compute `overall`; the
    CLI derives it from the user's weights so weighting stays consistent):
