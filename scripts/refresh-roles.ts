@@ -15,12 +15,18 @@
  *   pnpm refresh-roles --only resolve-ai          # one company
  *   pnpm refresh-roles --limit 50
  */
+import { readFileSync, writeFileSync } from "node:fs";
 import { loadEnvFile } from "../src/onboarding/load-env";
 import { createDb } from "../src/db/client";
 import { createCompanyRepo, createRoleRepo } from "../src/db/repository";
-import { fetchAtsJobs } from "../src/providers/ats";
+import { detectAts, fetchAtsJobs } from "../src/providers/ats";
 import { createProvider } from "../src/providers";
-import { discoverAtsBoardUrl } from "../src/roles/ats-discovery";
+import {
+  discoverAtsBoardUrl,
+  gatherBoardCandidates,
+  type BoardCandidate,
+} from "../src/roles/ats-discovery";
+import { isEngineeringOrProductRole } from "../src/roles/role-relevance";
 import { findJobsForCompany } from "../src/roles";
 import type { JobSearchResult } from "../src/providers/types";
 import type { RoleRepo } from "../src/db/repository";
@@ -41,7 +47,31 @@ function inferWorkType(loc: string | undefined): "remote" | "hybrid" | null {
   return null;
 }
 
-/** Replace a company's roles with a fresh ATS pull (ALL openings, no eng filter). */
+// A board returning more than HIGH_VOLUME openings is a scaled enterprise (or a
+// token-collision false match). Per user guidance we keep ONLY engineering +
+// product for those, so the list isn't flooded with every function. Smaller
+// boards (an early-stage target) keep all functions. Every company is then
+// capped at PER_COMPANY_CAP newest roles as a backstop against any one board
+// dominating the explorer / snapshot.
+const HIGH_VOLUME = 60;
+const PER_COMPANY_CAP = 80;
+
+/** Newest-first by postedDate; undated roles sort last (stable-ish for ties). */
+function byNewest(a: JobSearchResult, b: JobSearchResult): number {
+  return (b.postedDate ?? "").localeCompare(a.postedDate ?? "");
+}
+
+/**
+ * Pick which of a board's openings to keep: high-volume boards → engineering +
+ * product only; then cap to the newest PER_COMPANY_CAP. Returns the survivors.
+ */
+function selectAtsJobs(jobs: JobSearchResult[]): JobSearchResult[] {
+  const gated =
+    jobs.length > HIGH_VOLUME ? jobs.filter((j) => j.title && isEngineeringOrProductRole(j.title)) : jobs;
+  return [...gated].sort(byNewest).slice(0, PER_COMPANY_CAP);
+}
+
+/** Replace a company's roles with a fresh ATS pull (filtered + capped, see selectAtsJobs). */
 async function replaceWithAts(
   roles: RoleRepo,
   companyId: number,
@@ -51,11 +81,16 @@ async function replaceWithAts(
   for (const id of existingIds) await roles.delete(id);
   let inserted = 0;
   const seen = new Set<string>();
-  for (const j of jobs) {
+  for (const j of selectAtsJobs(jobs)) {
     if (!j.title) continue;
     if (j.externalId) {
       if (seen.has(j.externalId)) continue;
       seen.add(j.externalId);
+      // external_id is GLOBALLY unique. A duplicate company row (e.g. "Arize" and
+      // "Arize AI" both resolving to the same board) would otherwise crash the
+      // insert — skip a job another company already owns rather than steal it.
+      const owner = await roles.findByExternalId(j.externalId);
+      if (owner && owner.companyId !== companyId) continue;
     }
     await roles.create({
       companyId,
@@ -75,18 +110,47 @@ async function replaceWithAts(
   return inserted;
 }
 
-async function main() {
+/** Build the per-company role-URL + role-id indexes used by discovery + replace. */
+async function indexRoles(roles: RoleRepo) {
+  const allRoles = await roles.list();
+  const urlsByCo = new Map<number, string[]>();
+  const idsByCo = new Map<number, number[]>();
+  const atsSourced = new Set<number>();
+  for (const r of allRoles) {
+    if (r.url) (urlsByCo.get(r.companyId) ?? urlsByCo.set(r.companyId, []).get(r.companyId)!).push(r.url);
+    (idsByCo.get(r.companyId) ?? idsByCo.set(r.companyId, []).get(r.companyId)!).push(r.id);
+    if (r.source === "ats") atsSourced.add(r.companyId);
+  }
+  return { urlsByCo, idsByCo, atsSourced };
+}
+
+/** A company's web-search candidates, written out for the agent to adjudicate. */
+interface ReviewEntry {
+  slug: string;
+  name: string;
+  domain: string | null;
+  description: string | null;
+  candidates: BoardCandidate[];
+}
+
+/**
+ * MODE 1 — gather. Auto-apply the TRUSTED tiers (existing board URL / probe with
+ * identity). For every company that falls through to web search, collect its
+ * board candidates to `--gather <file>` for the agent (judge-boards skill) to
+ * decide, rather than guessing. Web search is NEVER auto-applied in this mode.
+ */
+async function runRefresh() {
   const dryRun = has("dry-run");
   const doWebsearch = !has("no-websearch");
   const doLinkedin = !has("no-linkedin");
-  const missingOnly = has("missing-only"); // skip companies already refreshed to ATS
+  const missingOnly = has("missing-only");
+  const gatherOut = has("gather") ? argFlag("gather") ?? "data/board-review.json" : undefined;
   const limit = Number(argFlag("limit")) || undefined;
   const only = argFlag("only");
 
   const db = createDb();
   const companies = createCompanyRepo(db);
   const roles = createRoleRepo(db);
-
   const searchProvider = doWebsearch ? createProvider("searchapi") : undefined;
   let harvest: ReturnType<typeof createProvider> | undefined;
   const getHarvest = () => (harvest ??= createProvider("harvest"));
@@ -95,49 +159,57 @@ async function main() {
   if (only) all = all.filter((c) => c.slug === only);
   if (limit) all = all.slice(0, limit);
 
-  // Existing role URLs + ids per company (for discovery + replacement).
-  const allRoles = await roles.list();
-  const urlsByCo = new Map<number, string[]>();
-  const idsByCo = new Map<number, number[]>();
-  const atsSourced = new Set<number>(); // companies already refreshed to ATS
-  for (const r of allRoles) {
-    if (r.url) (urlsByCo.get(r.companyId) ?? urlsByCo.set(r.companyId, []).get(r.companyId)!).push(r.url);
-    (idsByCo.get(r.companyId) ?? idsByCo.set(r.companyId, []).get(r.companyId)!).push(r.id);
-    if (r.source === "ats") atsSourced.add(r.companyId);
-  }
+  const { urlsByCo, idsByCo, atsSourced } = await indexRoles(roles);
   if (missingOnly) all = all.filter((c) => !atsSourced.has(c.id));
 
-  const tally = { ats: 0, websearch: 0, linkedin: 0, none: 0, rolesInserted: 0 };
+  const tally = { ats: 0, gathered: 0, linkedin: 0, none: 0, rolesInserted: 0 };
   const byVia: Record<string, number> = {};
+  const review: ReviewEntry[] = [];
 
   let idx = 0;
   async function worker() {
     while (idx < all.length) {
       const c: Company = all[idx++];
+      const input = {
+        name: c.name,
+        slug: c.slug,
+        domain: c.domain,
+        recruitingWebsite: c.recruitingWebsite,
+        roleUrls: urlsByCo.get(c.id),
+      };
       try {
-        const found = await discoverAtsBoardUrl(
-          {
-            name: c.name,
-            slug: c.slug,
-            domain: c.domain,
-            recruitingWebsite: c.recruitingWebsite,
-            roleUrls: urlsByCo.get(c.id),
-          },
-          { searchProvider },
-        );
-
+        // Trusted tiers only (omit searchProvider → cascade stops before web search).
+        const found = await discoverAtsBoardUrl(input);
         if (found) {
-          const jobs = await fetchAtsJobs(found.url);
           byVia[found.via] = (byVia[found.via] ?? 0) + 1;
-          if (found.via === "web-search") tally.websearch++;
-          else tally.ats++;
-          if (!dryRun && jobs.length > 0) {
+          tally.ats++;
+          if (!dryRun) {
             await companies.update(c.id, { recruitingWebsite: found.url });
-            const n = await replaceWithAts(roles, c.id, idsByCo.get(c.id) ?? [], jobs);
-            tally.rolesInserted += n;
+            tally.rolesInserted += await replaceWithAts(roles, c.id, idsByCo.get(c.id) ?? [], found.jobs);
           }
-          console.log(`✓ ${c.name} → ats[${found.board.provider}:${found.board.token}] (${jobs.length}) via ${found.via}`);
+          const kept = selectAtsJobs(found.jobs).length;
+          console.log(
+            `✓ ${c.name} → ats[${found.board.provider}:${found.board.token}] (${found.jobs.length}→${kept}) via ${found.via}`,
+          );
           continue;
+        }
+
+        // No trusted board → gather web-search candidates for the agent to judge.
+        if (gatherOut && searchProvider) {
+          const candidates = await gatherBoardCandidates(input, { searchProvider });
+          if (candidates.length) {
+            review.push({
+              slug: c.slug,
+              name: c.name,
+              domain: c.domain,
+              description: c.description ? c.description.slice(0, 280) : null,
+              candidates,
+            });
+            tally.gathered++;
+            const m = candidates.filter((x) => x.identity === "match").length;
+            console.log(`? ${c.name} → ${candidates.length} candidate(s) [${m} match] → review`);
+            continue;
+          }
         }
 
         if (doLinkedin && (c.linkedinCompanyId || c.linkedinUrl)) {
@@ -148,7 +220,7 @@ async function main() {
             tally.rolesInserted += r.inserted.length;
             console.log(`✓ ${c.name} → linkedin (${r.inserted.length} new, ${r.filtered} filtered)`);
           } else {
-            console.log(`· ${c.name} → would try LinkedIn (has ${c.linkedinCompanyId ? "companyId" : "linkedin_url"})`);
+            console.log(`· ${c.name} → would try LinkedIn`);
           }
           continue;
         }
@@ -162,12 +234,70 @@ async function main() {
   }
   await Promise.all(Array.from({ length: 8 }, worker));
 
+  if (gatherOut) {
+    review.sort((a, b) => a.name.localeCompare(b.name));
+    writeFileSync(gatherOut, JSON.stringify({ companies: review }, null, 2));
+    console.log(`\nWrote ${review.length} companies needing review → ${gatherOut}`);
+  }
   console.log(
-    `\n${dryRun ? "[dry-run] " : ""}Done — ATS: ${tally.ats}, web-search: ${tally.websearch}, ` +
-      `LinkedIn: ${tally.linkedin}, none: ${tally.none} (of ${all.length}). ` +
-      `Via: ${JSON.stringify(byVia)}.` +
+    `\n${dryRun ? "[dry-run] " : ""}Done — ATS: ${tally.ats}, gathered: ${tally.gathered}, ` +
+      `LinkedIn: ${tally.linkedin}, none: ${tally.none} (of ${all.length}). Via: ${JSON.stringify(byVia)}.` +
       (dryRun ? "" : ` Inserted ${tally.rolesInserted} fresh role(s).`),
   );
+}
+
+/**
+ * MODE 2 — apply the agent's decisions. Reads `{ decisions: [{slug, url, reason}] }`
+ * (url null = "no real board, leave as-is"). For each chosen board, fetch + replace
+ * that company's roles and persist the board as its recruiting_website.
+ */
+async function applyDecisions(file: string) {
+  const dryRun = has("dry-run");
+  const parsed = JSON.parse(readFileSync(file, "utf8")) as {
+    decisions: { slug: string; url: string | null; reason?: string }[];
+  };
+  const db = createDb();
+  const companies = createCompanyRepo(db);
+  const roles = createRoleRepo(db);
+  const { idsByCo } = await indexRoles(roles);
+
+  let applied = 0;
+  let inserted = 0;
+  for (const d of parsed.decisions) {
+    if (!d.url) {
+      console.log(`· ${d.slug} → no board (${d.reason ?? "agent: none"})`);
+      continue;
+    }
+    const company = await companies.getBySlug(d.slug);
+    if (!company) {
+      console.error(`! ${d.slug} → unknown slug`);
+      continue;
+    }
+    const board = detectAts(d.url);
+    if (!board) {
+      console.error(`! ${d.slug} → ${d.url} is not a recognized ATS board`);
+      continue;
+    }
+    const jobs = await fetchAtsJobs(d.url);
+    if (jobs.length === 0) {
+      console.error(`! ${d.slug} → ${d.url} returned 0 jobs (skipped)`);
+      continue;
+    }
+    const kept = selectAtsJobs(jobs).length;
+    if (!dryRun) {
+      await companies.update(company.id, { recruitingWebsite: d.url });
+      inserted += await replaceWithAts(roles, company.id, idsByCo.get(company.id) ?? [], jobs);
+    }
+    applied++;
+    console.log(`✓ ${d.slug} → ats[${board.provider}:${board.token}] (${jobs.length}→${kept})`);
+  }
+  console.log(`\n${dryRun ? "[dry-run] " : ""}Applied ${applied} board(s), inserted ${inserted} role(s).`);
+}
+
+async function main() {
+  const decisionsIn = argFlag("apply-decisions");
+  if (decisionsIn) return applyDecisions(decisionsIn);
+  return runRefresh();
 }
 
 main().catch((err) => {

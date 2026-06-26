@@ -47,7 +47,11 @@ export function detectAts(recruitingWebsite: string): AtsBoard | undefined {
 
   const host = url.hostname.toLowerCase().replace(/^www\./, "");
   // First non-empty path segment (path-token providers address the board there).
-  const firstSeg = url.pathname.split("/").filter(Boolean)[0];
+  // Decode it: an aggregator may link `…/Resolve%20AI/…`, but the board token is
+  // the literal "Resolve AI" — fetchAts re-encodes once, so storing the decoded
+  // form avoids the double-encoding that yielded 0 jobs.
+  const rawSeg = url.pathname.split("/").filter(Boolean)[0];
+  const firstSeg = rawSeg ? decodeURIComponent(rawSeg) : rawSeg;
 
   if (host === "jobs.ashbyhq.com") {
     return firstSeg ? { provider: "ashby", token: firstSeg } : undefined;
