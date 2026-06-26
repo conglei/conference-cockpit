@@ -49,32 +49,34 @@ export function connectionStrength(degree: number | null | undefined): number {
  * Rank contactable referrers by fit × connection-strength (desc). Stable
  * tie-break by person name so the ordering is deterministic for tests/UI.
  */
-export function whoNext(
+export async function whoNext(
   personRepo: PersonRepo,
   companyRepo: CompanyRepo,
-): WhoNextEntry[] {
-  const referrers = personRepo.listReferrers();
+): Promise<WhoNextEntry[]> {
+  const referrers = await personRepo.listReferrers();
 
   // Resolve each referrer's company once (small N; cache by id).
   const companyCache = new Map<number, Company | undefined>();
-  const getCompany = (id: number | null): Company | undefined => {
+  const getCompany = async (id: number | null): Promise<Company | undefined> => {
     if (id == null) return undefined;
-    if (!companyCache.has(id)) companyCache.set(id, companyRepo.get(id));
+    if (!companyCache.has(id)) companyCache.set(id, await companyRepo.get(id));
     return companyCache.get(id);
   };
 
-  const entries: WhoNextEntry[] = referrers.map((person) => {
-    const company = getCompany(person.companyId);
-    const companyFit = company?.scoreOverall ?? DEFAULT_FIT;
-    const strength = connectionStrength(person.connectionDegree);
-    return {
-      person,
-      company,
-      companyFit,
-      connectionStrength: strength,
-      priority: companyFit * strength,
-    };
-  });
+  const entries: WhoNextEntry[] = await Promise.all(
+    referrers.map(async (person) => {
+      const company = await getCompany(person.companyId);
+      const companyFit = company?.scoreOverall ?? DEFAULT_FIT;
+      const strength = connectionStrength(person.connectionDegree);
+      return {
+        person,
+        company,
+        companyFit,
+        connectionStrength: strength,
+        priority: companyFit * strength,
+      };
+    }),
+  );
 
   entries.sort(
     (a, b) =>

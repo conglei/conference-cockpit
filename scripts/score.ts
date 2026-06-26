@@ -45,7 +45,7 @@ async function main() {
   const { weights, prefilter: criteria, text: preferences } = loadPreferences();
   const narrative = readOptional("profile/narrative.md");
 
-  const all = repo.list();
+  const all = await repo.list();
   const targets = slug ? all.filter((c) => c.slug === slug) : all;
   if (slug && targets.length === 0) {
     console.error(`No company with slug "${slug}".`);

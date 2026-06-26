@@ -170,15 +170,15 @@ describe("findJobsFromAts", () => {
   let companies: CompanyRepo;
   let roles: RoleRepo;
 
-  function setup() {
-    const db = createTestDb();
+  async function setup() {
+    const db = await createTestDb();
     companies = createCompanyRepo(db);
     roles = createRoleRepo(db);
   }
 
   it('inserts roles with source "ats" and links them to the company', async () => {
-    setup();
-    const company = companies.create({
+    await setup();
+    const company = await companies.create({
       slug: "giga",
       name: "Giga",
       recruitingWebsite: "https://jobs.ashbyhq.com/giga",
@@ -198,8 +198,8 @@ describe("findJobsFromAts", () => {
   });
 
   it("dedupes on external_id across runs", async () => {
-    setup();
-    const company = companies.create({
+    await setup();
+    const company = await companies.create({
       slug: "giga",
       name: "Giga",
       recruitingWebsite: "https://jobs.ashbyhq.com/giga",
@@ -217,8 +217,8 @@ describe("findJobsFromAts", () => {
   });
 
   it("notes and skips a company with no recruiting_website", async () => {
-    setup();
-    const company = companies.create({ slug: "nope", name: "Nope" });
+    await setup();
+    const company = await companies.create({ slug: "nope", name: "Nope" });
     const r = await findJobsFromAts({ companies, roles, fetchImpl: fakeFetch({}) }, company.id);
     expect(r.inserted).toHaveLength(0);
     expect(r.notes.join(" ")).toMatch(/no recruiting_website/);

@@ -27,7 +27,7 @@ function flag(name: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-function main() {
+async function main() {
   const [cmd, idArg, statusArg] = process.argv.slice(2);
   const db = createDb(DB_URL);
   const people = createPersonRepo(db);
@@ -35,7 +35,7 @@ function main() {
   const summary = loadGoalProfile().summary;
 
   if (cmd === "list" || !cmd) {
-    const queue = followupQueue({ people, companies }, { profileSummary: summary });
+    const queue = await followupQueue({ people, companies }, { profileSummary: summary });
     if (!queue.length) {
       console.log("Follow-up queue is empty. Log who you met: pnpm conf-followup met <personId>");
       return;
@@ -63,7 +63,7 @@ function main() {
     }
     const clear = cmd === "untarget";
     for (const pid of ids) {
-      const person = logTarget({ people }, { personId: pid, note: flag("note"), clear });
+      const person = await logTarget({ people }, { personId: pid, note: flag("note"), clear });
       console.log(`${clear ? "Unsaved" : "Saved"}: ${person.name} (status=${person.outreachStatus})`);
     }
     return;
@@ -76,18 +76,18 @@ function main() {
   }
 
   if (cmd === "met") {
-    const person = logMet({ people }, { personId: id, note: flag("note"), nextAction: flag("next") });
+    const person = await logMet({ people }, { personId: id, note: flag("note"), nextAction: flag("next") });
     console.log(`Logged: met ${person.name} (status=${person.outreachStatus}, next="${person.nextAction}")`);
     return;
   }
 
   if (cmd === "draft") {
-    const person = people.get(id);
+    const person = await people.get(id);
     if (!person) {
       console.error(`No person with id ${id}.`);
       process.exit(1);
     }
-    const companyName = person.companyId ? (companies.get(person.companyId)?.name ?? null) : null;
+    const companyName = person.companyId ? ((await companies.get(person.companyId))?.name ?? null) : null;
     console.log(draftFollowup({ person, companyName, profileSummary: summary }));
     console.log("\n(draft only — send it yourself)");
     return;
@@ -98,7 +98,7 @@ function main() {
       console.error(`status must be one of: ${LOGGABLE_OUTREACH_STATUSES.join(", ")}`);
       process.exit(1);
     }
-    const { person } = logOutreach({ people }, { personId: id, status: statusArg as LoggableOutreachStatus });
+    const { person } = await logOutreach({ people }, { personId: id, status: statusArg as LoggableOutreachStatus });
     console.log(`Logged: ${person.name} → ${person.outreachStatus}`);
     return;
   }
@@ -107,4 +107,4 @@ function main() {
   process.exit(1);
 }
 
-main();
+await main();

@@ -35,17 +35,13 @@ function dateForDay(dayLabel: string): string | null {
 
 export default async function SessionsPage() {
   const db = getDb();
-  const talks = createTalkRepo(db).list();
+  const talks = await createTalkRepo(db).list();
 
   const people = new Map(
-    createPersonRepo(db)
-      .list()
-      .map((p) => [p.id, p] as const),
+    (await createPersonRepo(db).list()).map((p) => [p.id, p] as const),
   );
   const companies = new Map(
-    createCompanyRepo(db)
-      .list()
-      .map((c) => [c.id, c] as const),
+    (await createCompanyRepo(db).list()).map((c) => [c.id, c] as const),
   );
 
   // Talks are stored one row per speaker, so a co-presented talk shows up as

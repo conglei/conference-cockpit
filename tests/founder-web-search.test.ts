@@ -184,7 +184,7 @@ describe("enrichCompany web-search fallback (only when roster is empty)", () => 
 
   beforeEach(async () => {
     const { createTestDb } = await import("./helpers");
-    const db = createTestDb();
+    const db = await createTestDb();
     companies = createCompanyRepo(db);
     people = createPersonRepo(db);
     baseDir = mkdtempSync(join(tmpdir(), "founder-ws-"));
@@ -194,7 +194,7 @@ describe("enrichCompany web-search fallback (only when roster is empty)", () => 
     rmSync(baseDir, { recursive: true, force: true });
   });
 
-  function makeCompany(name: string, slug: string, status: CompanyStatus = "new") {
+  async function makeCompany(name: string, slug: string, status: CompanyStatus = "new") {
     return companies.create({
       slug,
       name,
@@ -220,7 +220,7 @@ describe("enrichCompany web-search fallback (only when roster is empty)", () => 
       },
     });
 
-    const c = makeCompany("EmptyCo", "emptyco");
+    const c = await makeCompany("EmptyCo", "emptyco");
     const r = await enrichCompany(
       { companies, people, provider: roster },
       c.id,
@@ -230,7 +230,7 @@ describe("enrichCompany web-search fallback (only when roster is empty)", () => 
     const names = r.people.map((p) => p.person.name).sort();
     expect(names).toEqual(["Nadia Web", "Omar Search"]);
 
-    const rows = people.list({ companyId: c.id });
+    const rows = await people.list({ companyId: c.id });
     const nadia = rows.find((p) => p.name === "Nadia Web");
     expect(nadia).toBeDefined();
     expect(nadia!.relationship).toBe("founder");
@@ -257,7 +257,7 @@ describe("enrichCompany web-search fallback (only when roster is empty)", () => 
       },
     });
 
-    const c = companies.create({
+    const c = await companies.create({
       slug: "giga",
       name: "Giga",
       linkedinUrl: "https://www.linkedin.com/company/gigaml",

@@ -93,7 +93,7 @@ export class HarvestProvider implements EnrichmentProvider {
     // Cache HIT: return the stored body without any network call, retry, or
     // meter cost (cache hits are free).
     const ck = cacheKey(this.name, "GET", url.toString());
-    const hit = this.cache.get(ck);
+    const hit = await this.cache.get(ck);
     if (hit) return JSON.parse(hit.response);
 
     // Retry transient failures (429 rate-limit, 5xx, network) with exponential
@@ -125,7 +125,7 @@ export class HarvestProvider implements EnrichmentProvider {
 
     // MISS on a 2xx: store the raw text, bill the call, return the parsed JSON.
     const text = await readBody(res);
-    this.cache.set(ck, {
+    await this.cache.set(ck, {
       provider: this.name,
       request: ck,
       response: text,

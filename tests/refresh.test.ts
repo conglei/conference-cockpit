@@ -67,8 +67,8 @@ describe("refresh pipeline", () => {
   let appMeta: AppMetaRepo;
   let provider: FakeProvider;
 
-  beforeEach(() => {
-    const db = createTestDb();
+  beforeEach(async () => {
+    const db = await createTestDb();
     companies = createCompanyRepo(db);
     appMeta = createAppMetaRepo(db);
     provider = new FakeProvider();
@@ -81,7 +81,7 @@ describe("refresh pipeline", () => {
     expect(r.inserted).toBe(2);
     expect(r.duplicates).toBe(0);
 
-    const rows = companies.list();
+    const rows = await companies.list();
     expect(rows).toHaveLength(2);
     for (const c of rows) {
       expect(c.status).toBe("new");
@@ -91,12 +91,12 @@ describe("refresh pipeline", () => {
       expect(c.linkedinUrl).toBeTruthy();
     }
     // Anthropic kept its real domain; Giga got one synthesized by the provider.
-    const anthropic = companies.getBySlug("anthropic");
+    const anthropic = await companies.getBySlug("anthropic");
     expect(anthropic?.domain).toBe("anthropic.com");
 
     // watermark persisted
     expect(r.refreshedAt).toBe(5000);
-    expect(appMeta.getLastRefreshAt()).toBe(5000);
+    expect(await appMeta.getLastRefreshAt()).toBe(5000);
   });
 
   it("dedupes on canonical identity across sources and re-runs (idempotent)", async () => {
@@ -120,8 +120,8 @@ describe("refresh pipeline", () => {
     expect(second.duplicates).toBe(3); // 2 gallery re-runs + 1 csv re-list
 
     // Still only the two original companies — no duplicates.
-    expect(companies.list()).toHaveLength(2);
-    expect(appMeta.getLastRefreshAt()).toBe(2000);
+    expect(await companies.list()).toHaveLength(2);
+    expect(await appMeta.getLastRefreshAt()).toBe(2000);
   });
 
   it("degrades gracefully when a source fails to fetch", async () => {
@@ -134,13 +134,13 @@ describe("refresh pipeline", () => {
     expect(r.inserted).toBe(2);
     const brokenResult = r.sources.find((s) => s.fetched === 0 && s.notes.length > 0);
     expect(brokenResult?.notes[0]).toMatch(/fetcher/i);
-    expect(appMeta.getLastRefreshAt()).toBe(3000);
+    expect(await appMeta.getLastRefreshAt()).toBe(3000);
   });
 });
 
 describe("newCompaniesSince — what's new since the last run", () => {
   it("returns only companies created after the watermark, oldest first", async () => {
-    const db = createTestDb();
+    const db = await createTestDb();
     const companies = createCompanyRepo(db);
     const appMeta = createAppMetaRepo(db);
     const provider = new FakeProvider();
@@ -156,24 +156,24 @@ describe("newCompaniesSince — what's new since the last run", () => {
       [fakeStartupsGallerySource([{ name: "Cartsense", website: "https://cartsense.ai" }])],
     );
 
-    const cartsense = companies.getBySlug("cartsense")!;
+    const cartsense = (await companies.getBySlug("cartsense"))!;
 
     // A watermark just below Cartsense's createdAt always returns it (strict >).
-    const fresh = newCompaniesSince(companies, cartsense.createdAt - 1);
+    const fresh = await newCompaniesSince(companies, cartsense.createdAt - 1);
     expect(fresh.map((c) => c.name)).toContain("Cartsense");
 
     // A watermark AT Cartsense's createdAt excludes it (and everything older) —
     // the row is no longer "new since the last run". Timing-independent.
     expect(
-      newCompaniesSince(companies, cartsense.createdAt).map((c) => c.name),
+      (await newCompaniesSince(companies, cartsense.createdAt)).map((c) => c.name),
     ).not.toContain("Cartsense");
 
     // A watermark at/above the freshest row → nothing is new since the last run.
-    const newest = Math.max(...companies.list().map((c) => c.createdAt));
-    expect(newCompaniesSince(companies, newest)).toHaveLength(0);
+    const newest = Math.max(...(await companies.list()).map((c) => c.createdAt));
+    expect(await newCompaniesSince(companies, newest)).toHaveLength(0);
 
     // The result is ordered oldest-first (stable for the digest).
-    const all = newCompaniesSince(companies, undefined);
+    const all = await newCompaniesSince(companies, undefined);
     expect(all.map((c) => c.createdAt)).toEqual(
       [...all.map((c) => c.createdAt)].sort((a, b) => a - b),
     );

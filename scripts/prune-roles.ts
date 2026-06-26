@@ -20,14 +20,14 @@ import { isRelevantRole } from "../src/roles";
 // tsx does not auto-load .env.local; do it before touching the DB.
 loadEnvFile();
 
-function main() {
+async function main() {
   const db = createDb(DB_URL);
   const roles = createRoleRepo(db);
   const applications = createApplicationRepo(db);
 
-  const all = roles.list();
+  const all = await roles.list();
   // Role ids referenced by an application — these are off-limits for deletion.
-  const referenced = new Set(applications.list().map((a) => a.roleId));
+  const referenced = new Set((await applications.list()).map((a) => a.roleId));
 
   let pruned = 0;
   for (const role of all) {
@@ -36,7 +36,7 @@ function main() {
       console.log(`· kept     ${role.title} (#${role.id}) — referenced by an application`);
       continue;
     }
-    roles.delete(role.id);
+    await roles.delete(role.id);
     console.log(`✗ ${role.title}`);
     pruned += 1;
   }
@@ -44,4 +44,4 @@ function main() {
   console.log(`Pruned ${pruned} of ${all.length} roles`);
 }
 
-main();
+await main();

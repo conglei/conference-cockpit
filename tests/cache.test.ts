@@ -32,12 +32,12 @@ describe("ResponseCache", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("round-trips set → get", () => {
+  it("round-trips set → get", async () => {
     const cache = new ResponseCache({ dbPath: join(dir, "c.db") });
     const key = cacheKey("apollo", "GET", "https://api.apollo.io/x?b=2&a=1");
-    expect(cache.get(key)).toBeUndefined();
-    cache.set(key, { provider: "apollo", request: key, response: '{"ok":true}', status: 200 });
-    expect(cache.get(key)).toEqual({ response: '{"ok":true}', status: 200 });
+    expect(await cache.get(key)).toBeUndefined();
+    await cache.set(key, { provider: "apollo", request: key, response: '{"ok":true}', status: 200 });
+    expect(await cache.get(key)).toEqual({ response: '{"ok":true}', status: 200 });
   });
 
   it("keys identically regardless of query-param order", () => {
@@ -46,18 +46,18 @@ describe("ResponseCache", () => {
     expect(a).toBe(b);
   });
 
-  it("works in-memory (:memory:) without touching disk", () => {
+  it("works in-memory (:memory:) without touching disk", async () => {
     const cache = new ResponseCache({ dbPath: ":memory:" });
     const key = cacheKey("apollo", "GET", "https://x.test/p");
-    cache.set(key, { provider: "apollo", request: key, response: "{}", status: 200 });
-    expect(cache.get(key)?.status).toBe(200);
+    await cache.set(key, { provider: "apollo", request: key, response: "{}", status: 200 });
+    expect((await cache.get(key))?.status).toBe(200);
   });
 
-  it("off mode: get always undefined, set is a no-op", () => {
+  it("off mode: get always undefined, set is a no-op", async () => {
     const cache = new ResponseCache({ dbPath: join(dir, "off.db"), off: true });
     const key = cacheKey("apollo", "GET", "https://x.test/p");
-    cache.set(key, { provider: "apollo", request: key, response: "{}", status: 200 });
-    expect(cache.get(key)).toBeUndefined();
+    await cache.set(key, { provider: "apollo", request: key, response: "{}", status: 200 });
+    expect(await cache.get(key)).toBeUndefined();
   });
 
   // A second identical provider request is served from cache: fetch runs ONCE,

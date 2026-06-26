@@ -50,10 +50,19 @@ async function main() {
     process.exit(1);
   }
 
-  const repo = createCompanyRepo(createDb(DB_URL));
+  const companies = createCompanyRepo(createDb(DB_URL));
   console.log(
     `Crawling aggregator pages from "${csvPath}" (${nameToAggregatorUrl.size} URLs)…`,
   );
+
+  // The async libsql repo can't satisfy the sync `RecoverDomainsRepo` shape, so
+  // pre-fetch the list and adapt `update` to delegate to the async repo.
+  const all = await companies.list();
+  const repo = {
+    list: () => all,
+    update: (id: number, patch: { domain: string; websiteUrl: string; recruitingWebsite?: string }) =>
+      companies.update(id, patch),
+  };
 
   let withCareers = 0;
   const result = await recoverDomains(repo, nameToAggregatorUrl, undefined, {

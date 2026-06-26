@@ -29,8 +29,8 @@ async function main() {
       : undefined;
 
   const targets = arg
-    ? [repo.getBySlug(arg)].filter((c): c is NonNullable<typeof c> => Boolean(c))
-    : repo.list().filter((c) => !c.domain || !c.linkedinUrl);
+    ? [await repo.getBySlug(arg)].filter((c): c is NonNullable<typeof c> => Boolean(c))
+    : (await repo.list()).filter((c) => !c.domain || !c.linkedinUrl);
 
   if (arg && targets.length === 0) {
     console.error(`No company with slug "${arg}".`);

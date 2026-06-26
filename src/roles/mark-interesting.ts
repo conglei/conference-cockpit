@@ -22,24 +22,24 @@ export interface MarkRoleInterestingResult {
  * Idempotent: re-marking an already-interesting role / already-advanced company
  * is a no-op that never regresses a company further along the funnel.
  */
-export function markRoleInteresting(
+export async function markRoleInteresting(
   deps: { roles: RoleRepo; companies: CompanyRepo },
   roleId: number,
-): MarkRoleInterestingResult {
+): Promise<MarkRoleInterestingResult> {
   const { roles, companies } = deps;
 
-  const existing = roles.get(roleId);
+  const existing = await roles.get(roleId);
   if (!existing) throw new Error(`markRoleInteresting: no role with id ${roleId}`);
 
   const role =
     existing.status === "interesting"
       ? existing
-      : (roles.update(roleId, { status: "interesting" }) ?? existing);
+      : ((await roles.update(roleId, { status: "interesting" })) ?? existing);
 
-  const before = companies.get(role.companyId);
+  const before = await companies.get(role.companyId);
   if (!before) throw new Error(`markRoleInteresting: role #${roleId} has no company`);
 
-  const company = companies.promoteToAtLeast(role.companyId, "interesting") ?? before;
+  const company = (await companies.promoteToAtLeast(role.companyId, "interesting")) ?? before;
   const companyPromoted = company.status !== before.status;
 
   return { role, company, companyPromoted };

@@ -16,10 +16,10 @@ import {
 } from "../src/track";
 
 /** Seed a company + role and return the role id (applications need a role). */
-function seedRole(db: DB, slug = "acme"): { companyId: number; roleId: number } {
-  const company = createCompanyRepo(db).create({ slug, name: slug });
+async function seedRole(db: DB, slug = "acme"): Promise<{ companyId: number; roleId: number }> {
+  const company = await createCompanyRepo(db).create({ slug, name: slug });
   const ts = Date.now();
-  const role = db
+  const role = await db
     .insert(roles)
     .values({
       companyId: company.id,
@@ -67,17 +67,17 @@ describe("track flow", () => {
   let roleId: number;
   let companyId: number;
 
-  beforeEach(() => {
-    db = createTestDb();
+  beforeEach(async () => {
+    db = await createTestDb();
     repo = createApplicationRepo(db);
-    ({ roleId, companyId } = seedRole(db));
+    ({ roleId, companyId } = await seedRole(db));
   });
 
-  it("advances status and records the next action", () => {
-    const app = repo.create({ roleId, companyId });
+  it("advances status and records the next action", async () => {
+    const app = await repo.create({ roleId, companyId });
     expect(app.status).toBe("interested"); // default
 
-    const res = track(repo, app.id, "applied", {
+    const res = await track(repo, app.id, "applied", {
       nextAction: "Send follow-up email",
       nextActionDate: "2026-07-01",
     });
@@ -88,32 +88,32 @@ describe("track flow", () => {
     expect(res.application.nextActionDate).toBe("2026-07-01");
   });
 
-  it("stamps applied_at once, the first time it reaches applied", () => {
-    const app = repo.create({ roleId, companyId });
+  it("stamps applied_at once, the first time it reaches applied", async () => {
+    const app = await repo.create({ roleId, companyId });
     expect(app.appliedAt).toBeNull();
 
-    const applied = track(repo, app.id, "applied").application;
+    const applied = (await track(repo, app.id, "applied")).application;
     expect(applied.appliedAt).toBeGreaterThan(0);
     const stampedAt = applied.appliedAt;
 
     // moving forward does not re-stamp applied_at
-    const screening = track(repo, app.id, "screening").application;
+    const screening = (await track(repo, app.id, "screening")).application;
     expect(screening.appliedAt).toBe(stampedAt);
   });
 
-  it("rejects an illegal transition without mutating the row", () => {
-    const app = repo.create({ roleId, companyId });
-    expect(() => track(repo, app.id, "offer")).toThrow(/Illegal status/);
-    expect(repo.get(app.id)?.status).toBe("interested");
+  it("rejects an illegal transition without mutating the row", async () => {
+    const app = await repo.create({ roleId, companyId });
+    await expect(track(repo, app.id, "offer")).rejects.toThrow(/Illegal status/);
+    expect((await repo.get(app.id))?.status).toBe("interested");
   });
 
-  it("throws on a missing application", () => {
-    expect(() => track(repo, 999, "applied")).toThrow(/No application/);
+  it("throws on a missing application", async () => {
+    await expect(track(repo, 999, "applied")).rejects.toThrow(/No application/);
   });
 
-  it("setNextAction records an action without advancing status", () => {
-    const app = repo.create({ roleId, companyId, status: "screening" });
-    const updated = setNextAction(repo, app.id, {
+  it("setNextAction records an action without advancing status", async () => {
+    const app = await repo.create({ roleId, companyId, status: "screening" });
+    const updated = await setNextAction(repo, app.id, {
       nextAction: "Prep system-design round",
       nextActionDate: "2026-07-10",
     });
@@ -121,10 +121,10 @@ describe("track flow", () => {
     expect(updated.nextAction).toBe("Prep system-design round");
   });
 
-  it("supports the referred entry path into screening", () => {
-    const app = repo.create({ roleId, companyId });
-    track(repo, app.id, "referred");
-    const res = track(repo, app.id, "screening");
+  it("supports the referred entry path into screening", async () => {
+    const app = await repo.create({ roleId, companyId });
+    await track(repo, app.id, "referred");
+    const res = await track(repo, app.id, "screening");
     expect(res.application.status).toBe("screening");
   });
 });

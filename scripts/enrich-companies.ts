@@ -63,15 +63,15 @@ async function main() {
 
   let targets;
   if (slugs.length) {
-    targets = slugs
-      .map((s) => companies.getBySlug(s))
-      .filter((c): c is NonNullable<typeof c> => Boolean(c));
+    targets = (await Promise.all(slugs.map((s) => companies.getBySlug(s)))).filter(
+      (c): c is NonNullable<typeof c> => Boolean(c),
+    );
     if (targets.length === 0) {
       console.error(`No company found for slug(s): ${slugs.join(", ")}.`);
       process.exit(1);
     }
   } else {
-    targets = companies.list(status ? { status } : undefined);
+    targets = await companies.list(status ? { status } : undefined);
   }
 
   const providerKind = (process.env.ENRICHMENT_PROVIDER ?? "fake").toLowerCase();

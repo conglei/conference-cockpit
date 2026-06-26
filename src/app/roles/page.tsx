@@ -45,12 +45,15 @@ export default async function RolesPage({
   const now = new Date();
 
   // Fetch the FULL dataset (all statuses); filtering happens client-side.
-  const roles = roleRepo.list();
+  const roles = await roleRepo.list();
   // Resolve each role's company once, then flatten name/slug/score/status onto
   // each row so the client can render + rank by company fit without a DB call.
   const companyById = new Map(
-    [...new Set(roles.map((r) => r.companyId))]
-      .map((id) => companyRepo.get(id))
+    (
+      await Promise.all(
+        [...new Set(roles.map((r) => r.companyId))].map((id) => companyRepo.get(id)),
+      )
+    )
       .filter((c): c is NonNullable<typeof c> => Boolean(c))
       .map((c) => [c.id, c] as const),
   );

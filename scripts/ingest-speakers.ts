@@ -29,7 +29,7 @@ async function main() {
   const src = process.argv[2] ?? DEFAULT_SRC;
   const data = await load(src);
   const db = createDb(DB_URL);
-  const res = ingestSpeakerProfiles({ people: createPersonRepo(db) }, data.speakers);
+  const res = await ingestSpeakerProfiles({ people: createPersonRepo(db) }, data.speakers);
 
   console.log(`Speakers feed: ${src} (${data.speakers.length} speakers)`);
   console.log(`  matched: ${res.matched}, unmatched: ${res.unmatched}`);

@@ -1,36 +1,33 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import * as schema from "./schema";
 
 export const DB_URL = process.env.DATABASE_URL ?? "data/conference.db";
 
-/**
- * Create a Drizzle client over a better-sqlite3 database.
- * Pass ":memory:" for an ephemeral DB (used by tests).
- */
-export function createDb(url: string = DB_URL) {
-  if (url !== ":memory:") {
-    mkdirSync(dirname(url), { recursive: true });
-  }
-  const sqlite = new Database(url);
-  sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("foreign_keys = ON");
-  return drizzle(sqlite, { schema });
+/** libsql needs a URL scheme. Map bare paths → file:, pass schemes through. */
+function toLibsqlUrl(url: string): string {
+  if (url === ":memory:") return ":memory:";
+  if (/^(file|libsql|https?|wss?):/.test(url)) return url;
+  mkdirSync(dirname(url), { recursive: true }); // local file path
+  return `file:${url}`;
 }
 
+export function createDb(url: string = DB_URL) {
+  const client = createClient({
+    url: toLibsqlUrl(url),
+    authToken: process.env.TURSO_AUTH_TOKEN ?? process.env.LIBSQL_AUTH_TOKEN,
+  });
+  return drizzle(client, { schema });
+}
 export type DB = ReturnType<typeof createDb>;
 
-/**
- * A READ-ONLY Drizzle client — the connection physically cannot mutate the DB.
- * Used by the agent-facing `query` CLI so exploration can never corrupt data
- * (writes go through the narrow `conf-followup` verbs instead). See ADR-0005.
- */
+// libsql has no read-only connection flag; the query CLI's safety now rests on
+// the query module being write-free (see ADR-0005). Optionally a read-only Turso
+// token enforces it in the cloud. Alias for now.
 export function createReadOnlyDb(url: string = DB_URL) {
-  const sqlite = new Database(url, { readonly: true });
-  sqlite.pragma("foreign_keys = ON");
-  return drizzle(sqlite, { schema });
+  return createDb(url);
 }
 
 // Lazy singleton for the app/CLIs (tests create their own isolated DBs).

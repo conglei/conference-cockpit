@@ -74,7 +74,7 @@ export async function scoreCompanies(
       { company, preferences: deps.preferences, narrative: deps.narrative },
       deps.weights,
     );
-    const updated = deps.repo.update(company.id, toScorePatch(result));
+    const updated = await deps.repo.update(company.id, toScorePatch(result));
     scored.push({ company: updated ?? company, result });
   }
 

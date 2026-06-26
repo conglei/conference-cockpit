@@ -54,14 +54,15 @@ async function main() {
   const companies = createCompanyRepo(db);
 
   let targets = slugs.length
-    ? slugs.map((s) => people.getBySlug(s)).filter((p): p is NonNullable<typeof p> => Boolean(p))
-    : people.list();
+    ? (await Promise.all(slugs.map((s) => people.getBySlug(s)))).filter(
+        (p): p is NonNullable<typeof p> => Boolean(p),
+      )
+    : await people.list();
 
   // --vertical: keep only people whose company carries that vertical.
   if (vertical) {
     const ok = new Set(
-      companies
-        .list()
+      (await companies.list())
         .filter((co) => (co.verticals ?? "").toLowerCase().includes(vertical!.toLowerCase()))
         .map((co) => co.id),
     );

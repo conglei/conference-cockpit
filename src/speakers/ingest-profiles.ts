@@ -33,11 +33,11 @@ const normLi = (u: string | null | undefined): string =>
   (u ?? "").toLowerCase().replace(/\/+$/, "").replace(/^https?:\/\/(www\.)?/, "");
 const normName = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-export function ingestSpeakerProfiles(
+export async function ingestSpeakerProfiles(
   deps: { people: PersonRepo },
   speakers: SpeakerProfile[],
-): IngestProfilesResult {
-  const all = deps.people.list();
+): Promise<IngestProfilesResult> {
+  const all = await deps.people.list();
   const byLi = new Map<string, Person>();
   const byName = new Map<string, Person>();
   for (const p of all) {
@@ -74,7 +74,7 @@ export function ingestSpeakerProfiles(
     if (twitter && !person.twitterUrl) patch.twitterUrl = twitter;
 
     if (Object.keys(patch).length > 0) {
-      deps.people.update(person.id, patch);
+      await deps.people.update(person.id, patch);
       if (patch.bio) res.bioSet++;
       if (patch.photoUrl) res.photoSet++;
       if (patch.twitterUrl) res.twitterSet++;

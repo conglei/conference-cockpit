@@ -12,12 +12,12 @@ import {
 describe("resolveCompany (offline, FakeProvider)", () => {
   let repo: CompanyRepo;
 
-  beforeEach(() => {
-    repo = createCompanyRepo(createTestDb());
+  beforeEach(async () => {
+    repo = createCompanyRepo(await createTestDb());
   });
 
   it("populates domain and linkedin_url through the data layer", async () => {
-    const c = repo.create({ slug: "giga", name: "Giga" });
+    const c = await repo.create({ slug: "giga", name: "Giga" });
     expect(c.domain).toBeNull();
     expect(c.linkedinUrl).toBeNull();
 
@@ -29,20 +29,20 @@ describe("resolveCompany (offline, FakeProvider)", () => {
     expect(r.company.linkedinUrl).toBe("https://www.linkedin.com/company/gigaml");
 
     // persisted, readable back through the repo
-    const reread = repo.get(c.id)!;
+    const reread = (await repo.get(c.id))!;
     expect(reread.domain).toBe("giga.com");
     expect(reread.linkedinUrl).toBe("https://www.linkedin.com/company/gigaml");
   });
 
   it("preserves already-resolved fields and only fills blanks", async () => {
-    const c = repo.create({ slug: "x", name: "Giga", domain: "preset.com" });
+    const c = await repo.create({ slug: "x", name: "Giga", domain: "preset.com" });
     const r = await resolveCompany(repo, c.id, new FakeProvider());
     expect(r.company.domain).toBe("preset.com"); // untouched
     expect(r.company.linkedinUrl).toBe("https://www.linkedin.com/company/gigaml"); // filled
   });
 
   it("is a no-op when both identity fields are already set", async () => {
-    const c = repo.create({
+    const c = await repo.create({
       slug: "x",
       name: "Giga",
       domain: "preset.com",
@@ -71,7 +71,7 @@ describe("resolveCompany (offline, FakeProvider)", () => {
       },
     });
 
-    const c = repo.create({ slug: "m", name: "Mystery" });
+    const c = await repo.create({ slug: "m", name: "Mystery" });
     const r = await resolveCompany(repo, c.id, blankPrimary, { searchProvider: fallback });
     expect(r.resolved).toBe(true);
     expect(r.via).toBe("web-search");
@@ -80,7 +80,7 @@ describe("resolveCompany (offline, FakeProvider)", () => {
 
   it("degrades gracefully when a provider is missing its key", async () => {
     const unconfigured = new HarvestProvider({ apiKey: undefined });
-    const c = repo.create({ slug: "g", name: "Giga" });
+    const c = await repo.create({ slug: "g", name: "Giga" });
 
     const r = await resolveCompany(repo, c.id, unconfigured);
 
@@ -92,7 +92,7 @@ describe("resolveCompany (offline, FakeProvider)", () => {
   it("recovers via fallback after tier 1 throws a config error", async () => {
     const unconfigured = new HarvestProvider({ apiKey: undefined });
     const fallback = new FakeProvider();
-    const c = repo.create({ slug: "g", name: "Giga" });
+    const c = await repo.create({ slug: "g", name: "Giga" });
 
     const r = await resolveCompany(repo, c.id, unconfigured, { searchProvider: fallback });
 
@@ -104,13 +104,13 @@ describe("resolveCompany (offline, FakeProvider)", () => {
 
   it("does not write an identity that collides with another company", async () => {
     // Existing row already owns giga.com + the gigaml LinkedIn.
-    repo.create({
+    await repo.create({
       slug: "existing",
       name: "Existing",
       domain: "giga.com",
       linkedinUrl: "https://www.linkedin.com/company/gigaml",
     });
-    const c = repo.create({ slug: "dupe", name: "Giga" });
+    const c = await repo.create({ slug: "dupe", name: "Giga" });
 
     const r = await resolveCompany(repo, c.id, new FakeProvider());
 
@@ -130,7 +130,7 @@ describe("resolveCompany (offline, FakeProvider)", () => {
       getEmployees: async () => [],
       search: async () => [],
     };
-    const c = repo.create({ slug: "b", name: "Boom" });
+    const c = await repo.create({ slug: "b", name: "Boom" });
     const r = await resolveCompany(repo, c.id, boom);
     expect(r.resolved).toBe(false);
     expect(r.notes.join("\n")).toMatch(/kaboom/);

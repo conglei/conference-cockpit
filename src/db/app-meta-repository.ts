@@ -19,13 +19,13 @@ export const LAST_REFRESH_AT = "last_refresh_at";
 export function createAppMetaRepo(db: DB) {
   return {
     /** Read a raw string value for a key, or undefined if unset. */
-    get(key: string): string | undefined {
-      const row = db.select().from(appMeta).where(eq(appMeta.key, key)).get();
+    async get(key: string): Promise<string | undefined> {
+      const row = await db.select().from(appMeta).where(eq(appMeta.key, key)).get();
       return row?.value ?? undefined;
     },
 
     /** The full row (value + updated_at) for a key, or undefined if unset. */
-    getRow(key: string): AppMeta | undefined {
+    async getRow(key: string): Promise<AppMeta | undefined> {
       return db.select().from(appMeta).where(eq(appMeta.key, key)).get();
     },
 
@@ -33,8 +33,8 @@ export function createAppMetaRepo(db: DB) {
      * Upsert a key/value, stamping `updated_at`. Idempotent on the key (the
      * primary key), so repeated sets overwrite rather than duplicate.
      */
-    set(key: string, value: string, now: number = Date.now()): void {
-      db
+    async set(key: string, value: string, now: number = Date.now()): Promise<void> {
+      await db
         .insert(appMeta)
         .values({ key, value, updatedAt: now })
         .onConflictDoUpdate({
@@ -45,16 +45,16 @@ export function createAppMetaRepo(db: DB) {
     },
 
     /** Read `last_refresh_at` as a number (ms), or undefined if never set. */
-    getLastRefreshAt(): number | undefined {
-      const raw = this.get(LAST_REFRESH_AT);
+    async getLastRefreshAt(): Promise<number | undefined> {
+      const raw = await this.get(LAST_REFRESH_AT);
       if (raw === undefined) return undefined;
       const n = Number(raw);
       return Number.isFinite(n) ? n : undefined;
     },
 
     /** Persist `last_refresh_at` (ms since epoch). */
-    setLastRefreshAt(ts: number = Date.now()): void {
-      this.set(LAST_REFRESH_AT, String(ts), ts);
+    async setLastRefreshAt(ts: number = Date.now()): Promise<void> {
+      await this.set(LAST_REFRESH_AT, String(ts), ts);
     },
   };
 }

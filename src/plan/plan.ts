@@ -69,15 +69,44 @@ export function buildPlan(input: {
 }
 
 /** Adapt the DB repositories into the read-only PlanGraph the lens composes over. */
-export function loadGraph(db: DB): PlanGraph {
+export async function loadGraph(db: DB): Promise<PlanGraph> {
   const companies = createCompanyRepo(db);
   const roles = createRoleRepo(db);
   const people = createPersonRepo(db);
   const talks = createTalkRepo(db);
+
+  // Pre-fetch everything once and group into in-memory indexes so the
+  // PlanGraph's synchronous lookup callbacks stay synchronous (the lens scoring
+  // is pure/sync). The data layer is async now, so the awaiting happens here.
+  const [allCompanies, allRoles, allPeople, allTalks] = await Promise.all([
+    companies.list(),
+    roles.list(),
+    people.list(),
+    talks.list(),
+  ]);
+
+  const rolesByCompanyId = groupBy(allRoles, (r) => r.companyId);
+  const peopleByCompanyId = groupBy(
+    allPeople.filter((p) => p.companyId != null),
+    (p) => p.companyId as number,
+  );
+  const talksBySpeakerId = groupBy(allTalks, (t) => t.speakerId);
+
   return {
-    companies: companies.list(),
-    rolesByCompany: (companyId) => roles.list({ companyId }),
-    peopleByCompany: (companyId) => people.listByCompany(companyId),
-    talksBySpeaker: (speakerId) => talks.bySpeaker(speakerId),
+    companies: allCompanies,
+    rolesByCompany: (companyId) => rolesByCompanyId.get(companyId) ?? [],
+    peopleByCompany: (companyId) => peopleByCompanyId.get(companyId) ?? [],
+    talksBySpeaker: (speakerId) => talksBySpeakerId.get(speakerId) ?? [],
   };
+}
+
+function groupBy<T>(items: T[], key: (item: T) => number): Map<number, T[]> {
+  const map = new Map<number, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    const bucket = map.get(k);
+    if (bucket) bucket.push(item);
+    else map.set(k, [item]);
+  }
+  return map;
 }

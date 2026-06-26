@@ -12,7 +12,7 @@ function fmt(v: number): string {
 
 export default async function WhoNextPage() {
   const db = getDb();
-  const entries = whoNext(createPersonRepo(db), createCompanyRepo(db));
+  const entries = await whoNext(createPersonRepo(db), createCompanyRepo(db));
 
   return (
     <main>

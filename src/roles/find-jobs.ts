@@ -86,16 +86,16 @@ export async function findJobs(
 
     // Dedupe on the provider's stable job id before doing any work.
     if (job.externalId) {
-      const existing = roles.findByExternalId(job.externalId);
+      const existing = await roles.findByExternalId(job.externalId);
       if (existing) {
         result.duplicates.push(existing);
         continue;
       }
     }
 
-    const company = findOrCreateCompany(companies, job.companyName, result);
+    const company = await findOrCreateCompany(companies, job.companyName, result);
 
-    const role = roles.create({
+    const role = await roles.create({
       companyId: company.id,
       title: job.title,
       url: job.link ?? null,
@@ -123,18 +123,18 @@ export async function findJobs(
  * carries no canonical domain/linkedin identity. We never auto-merge into a
  * canonical row here; that's the resolver's job once the company is in the funnel.
  */
-function findOrCreateCompany(
+async function findOrCreateCompany(
   companies: CompanyRepo,
   companyName: string,
   result: FindJobsResult,
-): Company {
+): Promise<Company> {
   const name = companyName.trim() || "Unknown";
   const slug = slugify(name);
 
-  const existing = companies.getBySlug(slug);
+  const existing = await companies.getBySlug(slug);
   if (existing) return existing;
 
-  const created = companies.create({
+  const created = await companies.create({
     slug,
     name,
     status: "new",
@@ -213,7 +213,7 @@ export async function findJobsForCompany(
     resolvedCompanyId: false,
   };
 
-  let company = companies.get(companyId);
+  let company = await companies.get(companyId);
   if (!company) {
     result.notes.push(`no company with id ${companyId}`);
     return result;
@@ -232,7 +232,7 @@ export async function findJobsForCompany(
       });
       if (resolution.linkedinCompanyId) {
         linkedinCompanyId = resolution.linkedinCompanyId;
-        company = companies.update(companyId, { linkedinCompanyId }) ?? company;
+        company = (await companies.update(companyId, { linkedinCompanyId })) ?? company;
         result.resolvedCompanyId = true;
       }
     } catch (err) {
@@ -278,13 +278,13 @@ export async function findJobsForCompany(
       continue;
     }
     if (job.externalId) {
-      const existing = roles.findByExternalId(job.externalId);
+      const existing = await roles.findByExternalId(job.externalId);
       if (existing) {
         result.duplicates.push(existing);
         continue;
       }
     }
-    const role = roles.create({
+    const role = await roles.create({
       companyId: company.id,
       title: job.title,
       url: job.link ?? null,
@@ -335,7 +335,7 @@ export async function findJobsFromAts(
     notes: [],
   };
 
-  const company = companies.get(companyId);
+  const company = await companies.get(companyId);
   if (!company) {
     result.notes.push(`no company with id ${companyId}`);
     return result;
@@ -354,13 +354,13 @@ export async function findJobsFromAts(
       continue;
     }
     if (job.externalId) {
-      const existing = roles.findByExternalId(job.externalId);
+      const existing = await roles.findByExternalId(job.externalId);
       if (existing) {
         result.duplicates.push(existing);
         continue;
       }
     }
-    const role = roles.create({
+    const role = await roles.create({
       companyId: company.id,
       title: job.title,
       url: job.link ?? null,

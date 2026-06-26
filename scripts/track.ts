@@ -22,7 +22,7 @@ function fail(msg: string): never {
   process.exit(1);
 }
 
-function main() {
+async function main() {
   const [cmd, ...args] = process.argv.slice(2);
   const repo = createApplicationRepo(createDb(DB_URL));
 
@@ -31,7 +31,7 @@ function main() {
       const status = args[0];
       if (status && !isApplicationStatus(status))
         fail(`Unknown status "${status}".`);
-      const rows = repo.listWithContext(
+      const rows = await repo.listWithContext(
         status && isApplicationStatus(status) ? { status } : undefined,
       );
       if (rows.length === 0) {
@@ -63,7 +63,7 @@ function main() {
           ? { nextAction: args[2] ?? null, nextActionDate: args[3] ?? null }
           : undefined;
       try {
-        const res = track(repo, id, to, next);
+        const res = await track(repo, id, to, next);
         console.log(`✓ #${id}: ${res.from} → ${res.to}`);
       } catch (err) {
         fail((err as Error).message);
@@ -77,7 +77,7 @@ function main() {
       if (!Number.isInteger(id) || !action)
         fail('Usage: pnpm track next <id> "next action" [date]');
       try {
-        setNextAction(repo, id, {
+        await setNextAction(repo, id, {
           nextAction: action,
           nextActionDate: args[2] ?? null,
         });
@@ -89,7 +89,7 @@ function main() {
     }
 
     case "leads": {
-      const leads = repo.interestingNotContacted();
+      const leads = await repo.interestingNotContacted();
       if (leads.length === 0) {
         console.log("No interesting + not-yet-contacted companies right now.");
         return;
@@ -115,4 +115,4 @@ function main() {
   }
 }
 
-main();
+await main();

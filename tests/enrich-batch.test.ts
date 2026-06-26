@@ -60,8 +60,8 @@ describe("enrichBatch (offline, per-company cost isolation)", () => {
   let people: PersonRepo;
   let baseDir: string;
 
-  beforeEach(() => {
-    const db = createTestDb();
+  beforeEach(async () => {
+    const db = await createTestDb();
     companies = createCompanyRepo(db);
     people = createPersonRepo(db);
     baseDir = mkdtempSync(join(tmpdir(), "enrich-batch-"));
@@ -94,11 +94,11 @@ describe("enrichBatch (offline, per-company cost isolation)", () => {
     return new FakeProvider({ employees });
   }
 
-  function seedCompanies() {
+  async function seedCompanies() {
     const ids: number[] = [];
     for (const path of Object.keys(ROSTERS)) {
       const slug = path.replace("/", "-");
-      const c = companies.create({
+      const c = await companies.create({
         slug,
         name: slug,
         linkedinUrl: `https://www.linkedin.com/${path}`,
@@ -116,7 +116,7 @@ describe("enrichBatch (offline, per-company cost isolation)", () => {
 
   it("attributes each company only its OWN provider calls (independent meters)", async () => {
     const fixtures = makeFixtures();
-    const ids = seedCompanies();
+    const ids = await seedCompanies();
 
     const { results } = await enrichBatch(
       ids,
@@ -138,14 +138,14 @@ describe("enrichBatch (offline, per-company cost isolation)", () => {
 
     // Persisted cost matches too (no inflation from concurrent neighbours).
     for (const r of results) {
-      const reloaded = companies.get(r.company.id);
+      const reloaded = await companies.get(r.company.id);
       expect(reloaded?.enrichmentCost).toBeCloseTo(r.costUsd, 9);
     }
   });
 
   it("returns a grand total equal to the sum of per-company costs", async () => {
     const fixtures = makeFixtures();
-    const ids = seedCompanies();
+    const ids = await seedCompanies();
 
     const { results, totalUsd } = await enrichBatch(
       ids,
@@ -167,7 +167,7 @@ describe("enrichBatch (offline, per-company cost isolation)", () => {
 
   it("tolerates a per-company error: skips it, keeps the batch going", async () => {
     const fixtures = makeFixtures();
-    const ids = seedCompanies();
+    const ids = await seedCompanies();
     const missingId = Math.max(...ids) + 999; // no such company → enrichCompany throws
 
     const { results } = await enrichBatch(

@@ -204,25 +204,25 @@ describe("ensureDb", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("creates a migrated DB and is idempotent", () => {
+  it("creates a migrated DB and is idempotent", async () => {
     const dbPath = join(dir, "test.db");
 
-    const db1 = ensureDb(dbPath);
+    const db1 = await ensureDb(dbPath);
     // schema is usable -> a repo query works against the migrated DB
     const repo1 = createCompanyRepo(db1);
-    repo1.create({ slug: "acme", name: "Acme" });
-    expect(repo1.list()).toHaveLength(1);
+    await repo1.create({ slug: "acme", name: "Acme" });
+    expect(await repo1.list()).toHaveLength(1);
     expect(existsSync(dbPath)).toBe(true);
 
     // Running again against the same path is a no-op (migrations already applied)
     // and data persists.
-    expect(() => ensureDb(dbPath)).not.toThrow();
-    const repo2 = createCompanyRepo(ensureDb(dbPath));
-    expect(repo2.list()).toHaveLength(1);
+    await expect(ensureDb(dbPath)).resolves.not.toThrow();
+    const repo2 = createCompanyRepo(await ensureDb(dbPath));
+    expect(await repo2.list()).toHaveLength(1);
   });
 
-  it("works against an in-memory DB", () => {
-    const db = ensureDb(":memory:");
-    expect(() => createCompanyRepo(db).list()).not.toThrow();
+  it("works against an in-memory DB", async () => {
+    const db = await ensureDb(":memory:");
+    await expect(createCompanyRepo(db).list()).resolves.not.toThrow();
   });
 });

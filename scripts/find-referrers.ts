@@ -46,7 +46,7 @@ async function main() {
       process.exit(1);
     }
     const source = new LinkedinCsvSource(readFileSync(path, "utf8"));
-    const r = ingestConnections(people, source);
+    const r = await ingestConnections(people, source);
     console.log(
       `Ingested via "${source.name}": ${r.inserted} new, ${r.updated} updated, ` +
         `${r.skipped} skipped.`,
@@ -74,8 +74,8 @@ async function main() {
     }
 
     const targets = all
-      ? companies.list().filter((c) => c.linkedinUrl)
-      : [companies.getBySlug(slug!)].filter((c): c is NonNullable<typeof c> => !!c);
+      ? (await companies.list()).filter((c) => c.linkedinUrl)
+      : [await companies.getBySlug(slug!)].filter((c): c is NonNullable<typeof c> => !!c);
 
     if (!all && targets.length === 0) {
       console.error(`No company with slug "${slug}".`);
@@ -101,7 +101,7 @@ async function main() {
   }
 
   if (cmd === "who-next" || cmd === undefined) {
-    const entries = whoNext(people, companies);
+    const entries = await whoNext(people, companies);
     if (entries.length === 0) {
       console.log("No contactable referrers yet. Ingest connections + cross-ref first.");
       return;

@@ -44,13 +44,13 @@ function parseVec(json: string): number[] | undefined {
 }
 
 /** Rank every stored speaker against `query`, returning the top `k` by cosine. */
-export function searchByVector(
+export async function searchByVector(
   repo: SpeakerEmbeddingRepo,
   query: number[],
   k = 10,
-): SpeakerMatch[] {
+): Promise<SpeakerMatch[]> {
   const out: SpeakerMatch[] = [];
-  for (const row of repo.list()) {
+  for (const row of await repo.list()) {
     const vec = parseVec(row.embedding);
     if (!vec) continue;
     out.push({
@@ -70,13 +70,15 @@ export function searchByVector(
  * "Find speakers like this one" — uses the stored vector of `externalId` as the
  * query and excludes the seed itself. Works with no embedding API.
  */
-export function nearestToSpeaker(
+export async function nearestToSpeaker(
   repo: SpeakerEmbeddingRepo,
   externalId: string,
   k = 10,
-): SpeakerMatch[] {
-  const seed = repo.byExternalId(externalId);
+): Promise<SpeakerMatch[]> {
+  const seed = await repo.byExternalId(externalId);
   const vec = seed && parseVec(seed.embedding);
   if (!vec) return [];
-  return searchByVector(repo, vec, k + 1).filter((m) => m.externalId !== externalId).slice(0, k);
+  return (await searchByVector(repo, vec, k + 1))
+    .filter((m) => m.externalId !== externalId)
+    .slice(0, k);
 }

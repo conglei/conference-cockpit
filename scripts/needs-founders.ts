@@ -21,17 +21,17 @@ import type { Person } from "../src/db/schema";
 // tsx does not auto-load .env.local; do it before touching the DB.
 loadEnvFile();
 
-function main() {
+async function main() {
   const db = createDb(DB_URL);
   const companyRepo = createCompanyRepo(db);
   const peopleRepo = createPersonRepo(db);
 
-  const companies = companyRepo.list();
+  const companies = await companyRepo.list();
 
   // Build companyId → people map so the selection stays a pure, testable helper.
   const peopleByCompany = new Map<number, Person[]>();
   for (const c of companies) {
-    peopleByCompany.set(c.id, peopleRepo.listByCompany(c.id));
+    peopleByCompany.set(c.id, await peopleRepo.listByCompany(c.id));
   }
 
   const candidates = needsFounders(companies, peopleByCompany);
@@ -51,4 +51,4 @@ function main() {
   }
 }
 
-main();
+await main();

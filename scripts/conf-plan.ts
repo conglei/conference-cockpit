@@ -27,7 +27,7 @@ function arg(name: string): string | undefined {
 }
 const hasFlag = (name: string) => process.argv.includes(`--${name}`);
 
-function main() {
+async function main() {
   const lensKey = arg("lens") ?? "career-mover";
   const limit = Number(arg("limit") ?? DEFAULT_PLAN_LIMIT);
   const lens = getLens(lensKey);
@@ -40,7 +40,7 @@ function main() {
   const plan = buildPlan({
     lens,
     profile: loadGoalProfile(),
-    graph: loadGraph(db),
+    graph: await loadGraph(db),
     limit,
   });
 
@@ -77,4 +77,4 @@ function main() {
   }
 }
 
-main();
+await main();

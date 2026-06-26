@@ -29,7 +29,7 @@ async function main() {
   const src = process.argv[2] ?? DEFAULT_SRC;
   const feed = await load(src);
   const db = createDb(DB_URL);
-  const res = ingestEmbeddings(
+  const res = await ingestEmbeddings(
     { people: createPersonRepo(db), embeddings: createSpeakerEmbeddingRepo(db) },
     feed,
   );

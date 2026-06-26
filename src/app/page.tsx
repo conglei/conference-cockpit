@@ -48,17 +48,27 @@ export default async function HomePage({
   const companies = createCompanyRepo(db);
   const talks = createTalkRepo(db);
 
-  const allPeople = people.list();
+  const allPeople = await people.list();
   const personById = new Map(allPeople.map((p) => [p.id, p]));
   // People saved to the who-to-meet list (outreach_status === "targeted").
   const savedIds = new Set(
     allPeople.filter((p) => p.outreachStatus === "targeted").map((p) => p.id),
   );
-  const byId = new Map(companies.list().map((c) => [c.id, c]));
+  const byId = new Map((await companies.list()).map((c) => [c.id, c]));
+  // Pre-fetch all talks once and index by speaker so the (synchronous) graph
+  // callback can resolve a speaker's talks without an async DB call.
+  const allTalks = await talks.list();
+  const talksBySpeakerId = new Map<number, (typeof allTalks)[number][]>();
+  for (const t of allTalks) {
+    if (t.speakerId == null) continue;
+    const list = talksBySpeakerId.get(t.speakerId);
+    if (list) list.push(t);
+    else talksBySpeakerId.set(t.speakerId, [t]);
+  }
   const graph: PeopleGraph = {
     people: allPeople,
     companyById: (id) => (id == null ? undefined : byId.get(id)),
-    talksBySpeaker: (id) => talks.bySpeaker(id),
+    talksBySpeaker: (id) => talksBySpeakerId.get(id) ?? [],
   };
 
   const vset = new Set<string>();

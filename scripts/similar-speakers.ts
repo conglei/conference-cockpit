@@ -13,7 +13,7 @@ import { nearestToSpeaker } from "../src/speakers/semantic-search";
 
 loadEnvFile();
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   let k = 10;
   const kFlag = args.indexOf("--k");
@@ -31,7 +31,7 @@ function main() {
   const repo = createSpeakerEmbeddingRepo(db);
 
   // Resolve the seed: exact external id, else first name/company substring match.
-  const all = repo.list();
+  const all = await repo.list();
   const q = query.toLowerCase();
   const seed =
     all.find((s) => s.externalId === query) ??
@@ -45,10 +45,10 @@ function main() {
 
   console.log(`Seed: ${seed.name}${seed.company ? ` — ${seed.company}` : ""} (${seed.externalId})`);
   console.log(`Nearest ${k}:`);
-  for (const m of nearestToSpeaker(repo, seed.externalId, k)) {
+  for (const m of await nearestToSpeaker(repo, seed.externalId, k)) {
     const co = m.company ? ` — ${m.company}` : "";
     console.log(`  ${m.score.toFixed(3)}  ${m.name}${co}${m.role ? ` (${m.role})` : ""}`);
   }
 }
 
-main();
+await main();

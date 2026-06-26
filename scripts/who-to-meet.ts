@@ -17,6 +17,7 @@ import { createDb, DB_URL } from "../src/db/client";
 import { createPersonRepo } from "../src/db/people-repository";
 import { createCompanyRepo } from "../src/db/repository";
 import { createTalkRepo } from "../src/db/talk-repository";
+import type { Talk } from "../src/db/schema";
 import { loadGoalProfile } from "../src/plan/profile";
 import {
   extractBackground,
@@ -35,7 +36,7 @@ function readIfPresent(path: string): string | undefined {
   }
 }
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   const json = args.includes("--json");
   const speakingOnly = args.includes("--speaking");
@@ -56,11 +57,20 @@ function main() {
   const companies = createCompanyRepo(db);
   const talks = createTalkRepo(db);
 
-  const byId = new Map(companies.list().map((c) => [c.id, c]));
+  const byId = new Map((await companies.list()).map((c) => [c.id, c]));
+  // Pre-fetch talks once and group by speaker so the sync `talksBySpeaker`
+  // callback (the ranker is synchronous) reads from an in-memory map.
+  const talksBySpeakerId = new Map<number, Talk[]>();
+  for (const t of await talks.list()) {
+    if (t.speakerId == null) continue;
+    const list = talksBySpeakerId.get(t.speakerId);
+    if (list) list.push(t);
+    else talksBySpeakerId.set(t.speakerId, [t]);
+  }
   const graph: PeopleGraph = {
-    people: people.list(),
+    people: await people.list(),
     companyById: (id) => (id == null ? undefined : byId.get(id)),
-    talksBySpeaker: (id) => talks.bySpeaker(id),
+    talksBySpeaker: (id) => talksBySpeakerId.get(id) ?? [],
   };
 
   const profile = loadGoalProfile();
@@ -96,4 +106,4 @@ function main() {
   }
 }
 
-main();
+await main();

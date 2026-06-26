@@ -81,7 +81,7 @@ export async function importRows(
 
     // Pre-insert dedupe on any identity the mapping already carried (cheap path
     // before we even create the row).
-    const preMatch = repo.findByIdentity({
+    const preMatch = await repo.findByIdentity({
       domain: mapped.domain ?? null,
       linkedinUrl: mapped.linkedinUrl ?? null,
     });
@@ -93,13 +93,13 @@ export async function importRows(
     const input: CompanyInput = {
       ...(mapped as CompanyInput),
       name,
-      slug: uniqueSlug(repo, name),
+      slug: await uniqueSlug(repo, name),
       status: "new",
       source: opts.source ?? "csv",
       sourceDetail: opts.sourceDetail ?? null,
     };
 
-    const created = repo.create(input);
+    const created = await repo.create(input);
 
     // Data-cleansing step (ADR-0003 §1): if the row carried an aggregator URL
     // and we don't already have a domain, crawl it to derive the REAL domain +
@@ -111,10 +111,10 @@ export async function importRows(
       const crawled = await crawl(hints.aggregatorUrl);
       if (crawled) {
         resolved =
-          repo.update(created.id, {
+          (await repo.update(created.id, {
             domain: crawled.domain,
             websiteUrl: crawled.websiteUrl,
-          }) ?? created;
+          })) ?? created;
         crawledDomain = true;
       }
     }
@@ -135,9 +135,9 @@ export async function importRows(
 
     // Idempotency / cross-shape dedupe: if that identity already belongs to a
     // DIFFERENT row, this import is a duplicate — roll back the just-created row.
-    const dupe = findOtherByIdentity(repo, created.id, identity);
+    const dupe = await findOtherByIdentity(repo, created.id, identity);
     if (dupe) {
-      repo.delete(created.id);
+      await repo.delete(created.id);
       outcomes.push({ kind: "duplicate", company: resolved, matched: dupe });
       continue;
     }
@@ -200,12 +200,12 @@ async function canonicalIdentity(
 }
 
 /** Find a company matching this identity but with a different id. */
-function findOtherByIdentity(
+async function findOtherByIdentity(
   repo: CompanyRepo,
   selfId: number,
   identity: Identity,
-): Company | undefined {
-  const match = repo.findByIdentity(identity);
+): Promise<Company | undefined> {
+  const match = await repo.findByIdentity(identity);
   return match && match.id !== selfId ? match : undefined;
 }
 
@@ -222,11 +222,11 @@ function tally(outcomes: RowOutcome[]): ImportResult {
 }
 
 /** kebab-case slug, made unique against existing rows (ADR-0001 convention). */
-function uniqueSlug(repo: CompanyRepo, name: string): string {
+async function uniqueSlug(repo: CompanyRepo, name: string): Promise<string> {
   const base = slugify(name) || "company";
   let candidate = base;
   let n = 2;
-  while (repo.getBySlug(candidate)) {
+  while (await repo.getBySlug(candidate)) {
     candidate = `${base}-${n}`;
     n++;
   }

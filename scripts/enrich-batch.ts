@@ -31,10 +31,10 @@ async function main() {
   const people = createPersonRepo(db);
 
   const targets = slugs.length
-    ? slugs
-        .map((s) => companies.getBySlug(s))
-        .filter((c): c is NonNullable<typeof c> => Boolean(c))
-    : companies.list({ status: "new" });
+    ? (await Promise.all(slugs.map((s) => companies.getBySlug(s)))).filter(
+        (c): c is NonNullable<typeof c> => Boolean(c),
+      )
+    : await companies.list({ status: "new" });
 
   if (slugs.length && targets.length === 0) {
     console.error(`No company found for slug(s): ${slugs.join(", ")}.`);

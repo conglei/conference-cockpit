@@ -81,12 +81,12 @@ function isTouch(status: LoggableOutreachStatus): boolean {
  * @throws if the person (or named application) doesn't exist, so a mis-logged
  *         attempt fails loudly rather than silently writing nothing.
  */
-export function logOutreach(
+export async function logOutreach(
   repos: { people: PersonRepo; applications?: ApplicationRepo },
   input: LogOutreachInput,
   now: () => number = Date.now,
-): LogOutreachResult {
-  const existing = repos.people.get(input.personId);
+): Promise<LogOutreachResult> {
+  const existing = await repos.people.get(input.personId);
   if (!existing) {
     throw new Error(`logOutreach: no person with id ${input.personId}`);
   }
@@ -104,7 +104,7 @@ export function logOutreach(
     patch.lastContactedAt = now();
   }
 
-  const person = repos.people.update(input.personId, patch);
+  const person = await repos.people.update(input.personId, patch);
   if (!person) {
     // update() only returns undefined if the row vanished between get + update.
     throw new Error(`logOutreach: failed to update person ${input.personId}`);
@@ -117,7 +117,7 @@ export function logOutreach(
         "logOutreach: applicationId given but no applications repo provided",
       );
     }
-    const appExisting = repos.applications.get(input.applicationId);
+    const appExisting = await repos.applications.get(input.applicationId);
     if (!appExisting) {
       throw new Error(
         `logOutreach: no application with id ${input.applicationId}`,
@@ -128,7 +128,7 @@ export function logOutreach(
     if ("nextActionDate" in input)
       appPatch.nextActionDate = input.nextActionDate ?? null;
     application =
-      repos.applications.update(input.applicationId, appPatch) ?? null;
+      (await repos.applications.update(input.applicationId, appPatch)) ?? null;
   }
 
   return { person, application };

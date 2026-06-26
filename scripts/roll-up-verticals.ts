@@ -15,9 +15,9 @@ import { rollUpVerticals } from "../src/talks/roll-up-verticals";
 
 loadEnvFile();
 
-function main() {
+async function main() {
   const db = createDb(DB_URL);
-  const res = rollUpVerticals({
+  const res = await rollUpVerticals({
     companies: createCompanyRepo(db),
     talks: createTalkRepo(db),
   });
@@ -27,4 +27,4 @@ function main() {
   for (const v of res.distinctVerticals) console.log(`  - ${v}`);
 }
 
-main();
+await main();

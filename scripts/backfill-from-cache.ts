@@ -45,7 +45,7 @@ async function main() {
   const cache = getResponseCache();
 
   // Only companies we can key Apollo by (domain is Apollo's natural key).
-  const targets = companies.list().filter((c) => c.domain && c.domain.length > 0);
+  const targets = (await companies.list()).filter((c) => c.domain && c.domain.length > 0);
 
   // Per-company Apollo provider: real cache, throwing fetch, dummy key (the key
   // check passes but cache hits short-circuit before any fetch).

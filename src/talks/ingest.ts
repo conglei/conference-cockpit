@@ -41,12 +41,12 @@ const normLi = (u: string | null | undefined): string =>
   (u ?? "").toLowerCase().replace(/\/+$/, "").replace(/^https?:\/\/(www\.)?/, "");
 const normName = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-export function ingestTalks(
+export async function ingestTalks(
   deps: { people: PersonRepo; talks: TalkRepo },
   speakers: AgendaSpeaker[],
   opts: { sourceDetail?: string } = {},
-): IngestResult {
-  const allPeople = deps.people.list();
+): Promise<IngestResult> {
+  const allPeople = await deps.people.list();
   const byLi = new Map<string, Person>();
   const byName = new Map<string, Person>();
   for (const p of allPeople) {
@@ -79,7 +79,7 @@ export function ingestTalks(
         res.sessionsSkippedNoTitle++;
         continue;
       }
-      const inserted = deps.talks.createIgnore({
+      const inserted = await deps.talks.createIgnore({
         speakerId: person.id,
         companyId: person.companyId ?? null,
         title,
