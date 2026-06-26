@@ -109,3 +109,32 @@ export function isExplicitlyJunior(title: string): boolean {
 export function isRelevantRole(title: string): boolean {
   return isEngineeringRole(title) && !isExplicitlyJunior(title);
 }
+
+/**
+ * Product-management signals (NOT product *marketing*, which is marketing). Used
+ * to widen the gate to engineering + product when a high-volume company (a big
+ * board) would otherwise flood the list with every function.
+ */
+const PRODUCT_SIGNALS: RegExp[] = [
+  /\bproduct manager\b/i,
+  /\bproduct management\b/i,
+  /\bproduct lead\b/i,
+  /\bhead of product\b/i,
+  /\bdirector of product\b/i,
+  /\bgroup product manager\b/i,
+  /\bproduct owner\b/i,
+  /\bvp\b.*\bproduct\b/i,
+  /\bchief product officer\b/i,
+  /\bcpo\b/i,
+];
+
+/** True for product-management titles (excludes "product marketing"). */
+export function isProductRole(title: string): boolean {
+  if (/product marketing/i.test(title)) return false;
+  return PRODUCT_SIGNALS.some((re) => re.test(title));
+}
+
+/** Engineering OR product, and not explicitly junior — the high-volume-company gate. */
+export function isEngineeringOrProductRole(title: string): boolean {
+  return (isEngineeringRole(title) || isProductRole(title)) && !isExplicitlyJunior(title);
+}

@@ -8,7 +8,6 @@ import {
   careerMoverLens,
   loadGraph,
   loadGoalProfile,
-  graphHasScores,
 } from "@/plan";
 import {
   formatChip,
@@ -44,12 +43,19 @@ export default async function CompanyBriefPage({
   if (!company) notFound();
 
   const now = new Date();
-  const graph = await loadGraph(db);
+  // Scope the graph to THIS company — the brief only reads its own
+  // roles/people/talks; loading the whole graph here is what made this page slow.
+  // neutral-mode is a global signal, so check it with a cheap count, not by
+  // scanning all company rows.
+  const [graph, hasScores] = await Promise.all([
+    loadGraph(db, { companyId: company.id }),
+    createCompanyRepo(db).anyScored(),
+  ]);
   const ctx = {
     profile: loadGoalProfile(),
     graph,
     now,
-    neutralMode: !graphHasScores(graph),
+    neutralMode: !hasScores,
   };
   // The SAME sourced brief the trailer card renders — assembled by the lens.
   const score = careerMoverLens.scoreCompany(company, ctx);

@@ -47,7 +47,11 @@ export function detectAts(recruitingWebsite: string): AtsBoard | undefined {
 
   const host = url.hostname.toLowerCase().replace(/^www\./, "");
   // First non-empty path segment (path-token providers address the board there).
-  const firstSeg = url.pathname.split("/").filter(Boolean)[0];
+  // Decode it: an aggregator may link `…/Resolve%20AI/…`, but the board token is
+  // the literal "Resolve AI" — fetchAts re-encodes once, so storing the decoded
+  // form avoids the double-encoding that yielded 0 jobs.
+  const rawSeg = url.pathname.split("/").filter(Boolean)[0];
+  const firstSeg = rawSeg ? decodeURIComponent(rawSeg) : rawSeg;
 
   if (host === "jobs.ashbyhq.com") {
     return firstSeg ? { provider: "ashby", token: firstSeg } : undefined;
@@ -66,6 +70,45 @@ export function detectAts(recruitingWebsite: string): AtsBoard | undefined {
       : undefined;
   }
 
+  return undefined;
+}
+
+/**
+ * Build the canonical public board URL for a detected board — the inverse of
+ * {@link detectAts}. Used by discovery to persist a `recruiting_website` (so the
+ * existing fetch/insert path can run) and to probe a candidate {provider, token}.
+ */
+export function boardToUrl(board: AtsBoard): string {
+  switch (board.provider) {
+    case "ashby":
+      return `https://jobs.ashbyhq.com/${board.token}`;
+    case "greenhouse":
+      return `https://job-boards.greenhouse.io/${board.token}`;
+    case "lever":
+      return `https://jobs.lever.co/${board.token}`;
+    case "workable":
+      return `https://${board.token}.workable.com`;
+  }
+}
+
+/**
+ * Probe candidate board tokens against each ATS provider and return the first
+ * {board, url, jobCount} that yields ≥1 job — discovery for a company whose
+ * board isn't already known. Free, no key; defensive (never throws).
+ */
+export async function probeAtsBoard(
+  tokens: string[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ board: AtsBoard; url: string; jobCount: number } | undefined> {
+  const providers: AtsBoard["provider"][] = ["ashby", "greenhouse", "lever"];
+  for (const token of tokens) {
+    if (!token || token.length < 2) continue;
+    for (const provider of providers) {
+      const url = boardToUrl({ provider, token });
+      const jobs = await fetchAtsJobs(url, fetchImpl);
+      if (jobs.length > 0) return { board: { provider, token }, url, jobCount: jobs.length };
+    }
+  }
   return undefined;
 }
 

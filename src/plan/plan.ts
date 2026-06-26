@@ -69,20 +69,29 @@ export function buildPlan(input: {
 }
 
 /** Adapt the DB repositories into the read-only PlanGraph the lens composes over. */
-export async function loadGraph(db: DB): Promise<PlanGraph> {
+export async function loadGraph(db: DB, opts?: { companyId?: number }): Promise<PlanGraph> {
   const companies = createCompanyRepo(db);
   const roles = createRoleRepo(db);
   const people = createPersonRepo(db);
   const talks = createTalkRepo(db);
 
-  // Pre-fetch everything once and group into in-memory indexes so the
-  // PlanGraph's synchronous lookup callbacks stay synchronous (the lens scoring
-  // is pure/sync). The data layer is async now, so the awaiting happens here.
+  // Pre-fetch and group into in-memory indexes so the PlanGraph's synchronous
+  // lookup callbacks stay synchronous (lens scoring is pure/sync).
+  //
+  // SCOPED MODE (`opts.companyId`): a single-company brief only reads that
+  // company's roles/people/talks from the graph (+ `companies` for the global
+  // has-scores / neutral-mode check). Pulling all ~4.6k roles (with
+  // descriptions) over a remote DB just to render one company is what made the
+  // company page slow — so scope the heavy lists to the one company.
+  const cid = opts?.companyId;
   const [allCompanies, allRoles, allPeople, allTalks] = await Promise.all([
-    companies.list(),
-    roles.list(),
-    people.list(),
-    talks.list(),
+    // Scoped mode needs `companies` only for the single company's own row — the
+    // global has-scores / neutral-mode check is the caller's job (a cheap count),
+    // so we DON'T pull all ~300 company rows (with their large keyword/desc blobs).
+    cid != null ? companies.get(cid).then((c) => (c ? [c] : [])) : companies.list(),
+    cid != null ? roles.list({ companyId: cid }) : roles.list(),
+    cid != null ? people.list({ companyId: cid }) : people.list(),
+    cid != null ? talks.byCompany(cid) : talks.list(),
   ]);
 
   const rolesByCompanyId = groupBy(allRoles, (r) => r.companyId);

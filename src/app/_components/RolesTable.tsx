@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ROLE_STATUS } from "@/db/schema";
-import { filterByStatus, type RoleSortKey, type SortDir } from "@/ui/table-sort";
-import { replaceQuery } from "./url-state";
+import { type RoleSortKey, type SortDir } from "@/ui/table-sort";
 
 /** A plain-serializable role row enriched with its company's fit + freshness. */
 export type RoleRow = {
@@ -13,7 +13,6 @@ export type RoleRow = {
   location: string | null;
   workType: string | null;
   salary: string | null;
-  description: string | null;
   postedDate: string | null;
   status: string;
   source: string | null;
@@ -32,77 +31,77 @@ const SORT_LABEL: Record<RoleSortKey, string> = {
 };
 
 /**
- * Roles explorer: open roles as cards. Explore by what matters without a taste
- * profile — search, work type, and recency — with company fit as a *bonus* badge
- * and sort only where a score exists. Freshness is sourced on every posting; the
- * description opens on demand. Filter + sort run in memory and mirror to the URL.
+ * Roles explorer. Filtering, search, sort, and pagination all happen on the
+ * SERVER (the page queries one page at a time) — this client component just
+ * reflects the current state and pushes URL changes, so a ~4.6k-role dataset is
+ * never shipped or sorted in the browser. Search is debounced before navigating.
  */
 export default function RolesExplorer({
-  roles,
-  initialStatus,
-  initialSort,
-  initialDir,
+  rows,
+  total,
+  page,
+  pageSize,
+  q,
+  status,
+  workType,
+  workTypes,
+  sort,
+  dir,
+  anyScored,
 }: {
-  roles: RoleRow[];
-  initialStatus?: string;
-  initialSort: RoleSortKey;
-  initialDir: SortDir;
+  rows: RoleRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  q: string;
+  status: string;
+  workType: string;
+  workTypes: string[];
+  sort: RoleSortKey;
+  dir: SortDir;
+  anyScored: boolean;
 }) {
-  const anyScored = useMemo(() => roles.some((r) => r.companyScore != null), [roles]);
-  const workTypes = useMemo(
-    () =>
-      [...new Set(roles.map((r) => r.workType).filter((w): w is string => Boolean(w) && w !== "unknown"))].sort(),
-    [roles],
-  );
-  const sortKeys: RoleSortKey[] = anyScored ? ["fit", "posted", "title"] : ["posted", "title"];
+  const router = useRouter();
+  const [search, setSearch] = useState(q);
 
-  const [status, setStatus] = useState<string>(initialStatus ?? "all");
-  const [q, setQ] = useState<string>("");
-  const [workType, setWorkType] = useState<string>("all");
-  const [sort, setSort] = useState<RoleSortKey>(
-    initialSort === "fit" && !anyScored ? "posted" : initialSort,
-  );
-  const [dir, setDir] = useState<SortDir>(initialDir);
-
-  useEffect(() => {
-    replaceQuery({
-      status: status === "all" ? undefined : status,
-      sort: sort === "posted" ? undefined : sort,
-      dir,
-    });
-  }, [status, sort, dir]);
-
-  const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const filtered = filterByStatus(roles, status).filter((r) => {
-      if (workType !== "all" && r.workType !== workType) return false;
-      if (needle) {
-        const hay = `${r.title} ${r.companyName ?? ""} ${r.location ?? ""}`.toLowerCase();
-        if (!hay.includes(needle)) return false;
-      }
-      return true;
-    });
-    const sign = dir === "asc" ? 1 : -1;
-    return [...filtered].sort((a, b) => {
-      let cmp = 0;
-      if (sort === "fit") cmp = (a.companyScore ?? -1) - (b.companyScore ?? -1);
-      else if (sort === "posted")
-        cmp = (a.postedDate ?? "").localeCompare(b.postedDate ?? "");
-      else if (sort === "title") cmp = a.title.localeCompare(b.title);
-      else cmp = (a.companyName ?? "").localeCompare(b.companyName ?? "");
-      if (cmp === 0) cmp = (a.postedDate ?? "").localeCompare(b.postedDate ?? "");
-      return cmp * sign;
-    });
-  }, [roles, status, q, workType, sort, dir]);
-
-  // Clicking the active sort flips direction; a new key defaults to desc.
-  const onSort = (key: RoleSortKey) => {
-    if (key === sort) setDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setSort(key);
-      setDir(key === "title" ? "asc" : "desc");
-    }
+  /** Build /roles?… from the current state plus overrides (defaults omitted). */
+  const urlFor = (over: Partial<Record<string, string | undefined>>) => {
+    const m = { q, status, workType, sort, dir, page: String(page), ...over };
+    const p = new URLSearchParams();
+    if (m.q) p.set("q", m.q);
+    if (m.status && m.status !== "all") p.set("status", m.status);
+    if (m.workType && m.workType !== "all") p.set("workType", m.workType);
+    if (m.sort && m.sort !== "posted") p.set("sort", m.sort);
+    if (m.dir && m.dir !== "desc") p.set("dir", m.dir);
+    if (m.page && m.page !== "1") p.set("page", m.page);
+    const qs = p.toString();
+    return qs ? `/roles?${qs}` : "/roles";
   };
+  // A filter/sort/search change resets to page 1; pagination sets page explicitly.
+  const go = (over: Partial<Record<string, string | undefined>>) =>
+    router.push(urlFor({ page: "1", ...over }));
+
+  // Keep the box in sync if the URL's q changes underneath us (back/forward).
+  useEffect(() => setSearch(q), [q]);
+
+  // Debounce typing, then navigate (server does the search).
+  useEffect(() => {
+    if (search === q) return;
+    const t = setTimeout(() => go({ q: search || undefined }), 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const onSort = (key: RoleSortKey) => {
+    const keyParam = key === "posted" ? undefined : key;
+    if (key === sort) go({ sort: keyParam, dir: dir === "asc" ? "desc" : "asc" });
+    else go({ sort: keyParam, dir: key === "title" ? "asc" : "desc" });
+  };
+
+  const sortKeys: RoleSortKey[] = anyScored ? ["fit", "posted", "title"] : ["posted", "title"];
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
 
   return (
     <>
@@ -111,14 +110,14 @@ export default function RolesExplorer({
           type="search"
           className="dir-search"
           placeholder="Search roles, companies, locations…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           aria-label="search roles"
         />
         <select
           className="dir-select"
           value={workType}
-          onChange={(e) => setWorkType(e.target.value)}
+          onChange={(e) => go({ workType: e.target.value === "all" ? undefined : e.target.value })}
           aria-label="filter by work type"
         >
           <option value="all">Any location type</option>
@@ -135,7 +134,7 @@ export default function RolesExplorer({
           type="button"
           className="filter"
           data-active={status === "all"}
-          onClick={() => setStatus("all")}
+          onClick={() => go({ status: undefined })}
         >
           all
         </button>
@@ -145,7 +144,7 @@ export default function RolesExplorer({
             type="button"
             className="filter"
             data-active={status === s}
-            onClick={() => setStatus(s)}
+            onClick={() => go({ status: s })}
           >
             {s}
           </button>
@@ -173,23 +172,45 @@ export default function RolesExplorer({
 
       {rows.length === 0 ? (
         <p className="empty">
-          No roles{status !== "all" ? ` with status “${status}”` : ""}. Run{" "}
-          <code>pnpm find-jobs &quot;founding engineer&quot;</code> to discover
-          some.
+          No roles{status !== "all" ? ` with status “${status}”` : ""}
+          {q ? ` matching “${q}”` : ""}.
         </p>
       ) : (
-        <div className="role-cards">
-          {rows.map((r) => (
-            <RoleCard key={r.id} r={r} />
-          ))}
-        </div>
+        <>
+          <div className="role-cards">
+            {rows.map((r) => (
+              <RoleCard key={r.id} r={r} />
+            ))}
+          </div>
+
+          <nav className="pager" aria-label="pagination">
+            <button
+              type="button"
+              className="filter"
+              disabled={page <= 1}
+              onClick={() => router.push(urlFor({ page: String(page - 1) }))}
+            >
+              ← Prev
+            </button>
+            <span className="muted">
+              {from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()} · page {page}/{totalPages}
+            </span>
+            <button
+              type="button"
+              className="filter"
+              disabled={page >= totalPages}
+              onClick={() => router.push(urlFor({ page: String(page + 1) }))}
+            >
+              Next →
+            </button>
+          </nav>
+        </>
       )}
     </>
   );
 }
 
 function RoleCard({ r }: { r: RoleRow }) {
-  const [open, setOpen] = useState(false);
   const meta = [r.location, r.workType, r.salary].filter(Boolean).join(" · ");
   return (
     <article className="role-card">
@@ -224,20 +245,6 @@ function RoleCard({ r }: { r: RoleRow }) {
         </span>
         <span className="status">{r.status}</span>
       </div>
-
-      {r.description ? (
-        <div className="role-card-desc">
-          <p data-open={open}>{r.description}</p>
-          <button
-            type="button"
-            className="role-card-more"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-          >
-            {open ? "Show less" : "Show description"}
-          </button>
-        </div>
-      ) : null}
     </article>
   );
 }

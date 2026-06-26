@@ -28,6 +28,7 @@
     "enrich-companies": "tsx scripts/enrich-companies.ts",
     "enrich-people": "tsx scripts/enrich-people.ts",
     "find-jobs": "tsx scripts/find-jobs.ts",
+    "refresh-roles": "tsx scripts/refresh-roles.ts",
     "prune-roles": "tsx scripts/prune-roles.ts",
     "find-referrers": "tsx scripts/find-referrers.ts",
     "reach-out": "tsx scripts/reach-out.ts",

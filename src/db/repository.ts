@@ -1,4 +1,4 @@
-import { and, count, desc, eq, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, like, or } from "drizzle-orm";
 import type { DB } from "./client";
 import {
   companies,
@@ -10,6 +10,7 @@ import {
   type Role,
   type NewRole,
   type RoleStatus,
+  type WorkType,
 } from "./schema";
 
 // Fields the caller provides; id/timestamps are managed by the data layer.
@@ -44,6 +45,16 @@ export function createCompanyRepo(db: DB) {
 
     async getBySlug(slug: string): Promise<Company | undefined> {
       return db.select().from(companies).where(eq(companies.slug, slug)).get();
+    },
+
+    /** Cheap check: does ANY company carry a taste score? (gates the fit sort). */
+    async anyScored(): Promise<boolean> {
+      const r = await db
+        .select({ n: count() })
+        .from(companies)
+        .where(isNotNull(companies.scoreOverall))
+        .get();
+      return (r?.n ?? 0) > 0;
     },
 
     /**
@@ -112,6 +123,26 @@ export type CompanyRepo = ReturnType<typeof createCompanyRepo>;
 export type RoleInput = Omit<NewRole, "id" | "createdAt" | "updatedAt">;
 export type RolePatch = Partial<Omit<NewRole, "id" | "createdAt" | "updatedAt">>;
 
+/** A role joined with its company's display fields — one row of the explorer. */
+export type RoleCardRow = Pick<
+  Role,
+  | "id"
+  | "title"
+  | "url"
+  | "location"
+  | "workType"
+  | "salary"
+  | "status"
+  | "source"
+  | "postedDate"
+  | "lastSeenAt"
+  | "updatedAt"
+> & {
+  companyName: string | null;
+  companySlug: string | null;
+  companyScore: number | null;
+};
+
 /**
  * The typed data layer for roles (job listings). All role reads/writes go
  * through here; no raw SQL elsewhere (ADR-0001). Roles always link to a company
@@ -143,17 +174,46 @@ export function createRoleRepo(db: DB) {
     },
 
     /**
-     * Projected role list for the roles EXPLORER (cards). Selects only the
-     * columns the card renders and **truncates the description at the DB** —
-     * descriptions are ~half the roles payload (~1 MB across 2,373 rows), and the
-     * card only shows a 2-line preview, so shipping the full text is wasted bytes
-     * over a remote DB. Newest-first, like `list()`.
+     * One PAGE of the roles explorer — filtered, searched, sorted, and paginated
+     * AT THE DB so a ~4.6k-role dataset never ships whole. Joins the company for
+     * its name/slug/fit, searches title + location + company name, and returns
+     * the page rows plus the total matching count (for the pager). Descriptions
+     * aren't selected — the card links out to the live posting.
      */
-    async listForCards() {
-      return db
+    async listRolesPage(opts: {
+      status?: string;
+      workType?: string;
+      q?: string;
+      sort?: "posted" | "title" | "company" | "fit";
+      dir?: "asc" | "desc";
+      limit: number;
+      offset: number;
+    }): Promise<{ rows: RoleCardRow[]; total: number }> {
+      const conds = [];
+      if (opts.status && opts.status !== "all")
+        conds.push(eq(roles.status, opts.status as RoleStatus));
+      if (opts.workType && opts.workType !== "all")
+        conds.push(eq(roles.workType, opts.workType as WorkType));
+      const needle = opts.q?.trim();
+      if (needle) {
+        const pat = `%${needle}%`;
+        conds.push(or(like(roles.title, pat), like(roles.location, pat), like(companies.name, pat)));
+      }
+      const where = conds.length === 1 ? conds[0] : conds.length ? and(...conds) : undefined;
+
+      const dirFn = opts.dir === "asc" ? asc : desc;
+      const sortCol =
+        opts.sort === "title"
+          ? roles.title
+          : opts.sort === "company"
+            ? companies.name
+            : opts.sort === "fit"
+              ? companies.scoreOverall
+              : roles.postedDate;
+
+      const rowsQ = db
         .select({
           id: roles.id,
-          companyId: roles.companyId,
           title: roles.title,
           url: roles.url,
           location: roles.location,
@@ -164,11 +224,38 @@ export function createRoleRepo(db: DB) {
           postedDate: roles.postedDate,
           lastSeenAt: roles.lastSeenAt,
           updatedAt: roles.updatedAt,
-          description: sql<string | null>`substr(${roles.description}, 1, 220)`,
+          companyName: companies.name,
+          companySlug: companies.slug,
+          companyScore: companies.scoreOverall,
         })
         .from(roles)
-        .orderBy(desc(roles.createdAt))
-        .all();
+        .leftJoin(companies, eq(roles.companyId, companies.id))
+        .$dynamic();
+      if (where) rowsQ.where(where);
+      const rows = (await rowsQ
+        .orderBy(dirFn(sortCol), desc(roles.postedDate))
+        .limit(opts.limit)
+        .offset(opts.offset)
+        .all()) as RoleCardRow[];
+
+      const countQ = db
+        .select({ n: count() })
+        .from(roles)
+        .leftJoin(companies, eq(roles.companyId, companies.id))
+        .$dynamic();
+      if (where) countQ.where(where);
+      const total = (await countQ.get())?.n ?? 0;
+
+      return { rows, total };
+    },
+
+    /** Distinct, non-empty work types — for the explorer's location-type filter. */
+    async roleWorkTypes(): Promise<string[]> {
+      const rows = await db.selectDistinct({ workType: roles.workType }).from(roles).all();
+      return rows
+        .map((r) => r.workType)
+        .filter((w): w is WorkType => Boolean(w) && w !== "unknown")
+        .sort();
     },
 
     /**
