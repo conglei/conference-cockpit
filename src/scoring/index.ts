@@ -50,6 +50,20 @@ export {
 } from "./apply";
 
 export {
+  founderPedigree,
+  clearsFounderBar,
+  isFounderTitle,
+  type Pedigree,
+} from "./pedigree";
+
+export {
+  buildScoringContext,
+  type ScoringContextCompany,
+  type ScoringContextOptions,
+  type ScoringContextRepos,
+} from "./scoring-context";
+
+export {
   SCORE_AXES,
   isScoreAxis,
   scoreValue,

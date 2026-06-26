@@ -32,17 +32,21 @@ signal, decide the scores, and pipe them to a thin persistence CLI.
    (weights + hard pre-filters) and `profile/narrative.md` (who they are / what
    they want). These define what each sub-score *means for this user*.
 
-2. **Pick the scope — cheap first.** You usually don't need all ~297 companies.
-   Score the ones that matter: a vertical, who's hiring, or the plan's candidates.
+2. **Pull the scoring context in ONE call.** `score context` returns every
+   company's firmographics + funding + **founders-with-pedigree** (the founder
+   bar, precomputed) + open-role titles — so you don't hand-assemble a dump or do
+   N per-company lookups. Scope it cheaply:
    ```bash
-   pnpm query companies --hiring --json            # or --vertical "AI in Healthcare"
+   pnpm score context --hiring --json              # or --vertical "AI in Healthcare" / --limit N
    ```
+   Each row already carries `founders[].pedigree` (e.g. `["ex-OpenAI","PhD/research"]`)
+   — read it to apply the founder bar without further lookups.
 
-3. **Read each company's signal** (founders, funding, lead investor, industry,
-   verticals, description):
-   ```bash
-   pnpm query get company <slug> --json
-   ```
+3. **Narrow to what matters.** Your taste is usually exclusionary (a hard
+   pre-filter + a strict founder bar), so drop off-stage / off-location / off-domain
+   companies and the ones whose founders don't clear the bar before spending
+   judgment. (For a single company's deeper detail, `pnpm query get company <slug>`
+   still works.)
 
 4. **Judge the five sub-scores** ∈ [0,1] (or `null` for *no data* — never a
    fabricated 0), plus a one-line `rationale` and an optional structured
@@ -91,6 +95,7 @@ signal, decide the scores, and pipe them to a thin persistence CLI.
 | Step | Code | CLI |
 | --- | --- | --- |
 | Read taste (weights + prefilters) | [`src/scoring/weights.ts`](../../../src/scoring/weights.ts) (`loadPreferences`) | reads `profile/preferences.md` |
-| Read company signal | [`src/query`](../../../src/query/index.ts) | `pnpm query get company <slug> --json` |
+| Assemble scoring context (one call) | [`src/scoring/scoring-context.ts`](../../../src/scoring/scoring-context.ts) (`buildScoringContext`) · [`pedigree.ts`](../../../src/scoring/pedigree.ts) (founder bar) | `pnpm score context` |
+| Read one company's detail | [`src/query`](../../../src/query/index.ts) | `pnpm query get company <slug> --json` |
 | Persist judged scores | [`src/scoring/apply.ts`](../../../src/scoring/apply.ts) (`applyScores`) | `pnpm score apply -` |
 | Offline rubric double | [`src/scoring/scorer.ts`](../../../src/scoring/scorer.ts) (`FakeScorer`) | `pnpm score --fake [slug]` |

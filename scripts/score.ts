@@ -1,6 +1,10 @@
 /**
  * CLI: persist taste scores, plus an offline rubric triage.
  *
+ *   pnpm score context        # emit per-company scoring context as JSON — the
+ *                             #   firmographics + funding + founders-with-pedigree
+ *                             #   the agent judges over (one call, not N lookups).
+ *                             #   [--vertical X] [--hiring] [--limit N]
  *   pnpm score apply [file]   # persist agent-judged scores — a JSON array on
  *                             #   stdin (or a file): [{slug, founder_quality,
  *                             #   investor_quality, domain_fit, stage_fit,
@@ -17,13 +21,15 @@
 import { readFileSync } from "node:fs";
 import { loadEnvFile } from "../src/onboarding/load-env";
 import { createDb } from "../src/db/client";
-import { createCompanyRepo } from "../src/db/repository";
+import { createCompanyRepo, createRoleRepo } from "../src/db/repository";
+import { createPersonRepo } from "../src/db/people-repository";
 import {
   FakeScorer,
   loadPreferences,
   scoreCompanies,
   sortByScore,
   applyScores,
+  buildScoringContext,
   type AppliedScoreInput,
 } from "../src/scoring";
 
@@ -39,6 +45,26 @@ function readInput(arg: string | undefined): string {
     }
   }
   return readFileSync(arg, "utf8");
+}
+
+const argFlag = (name: string): string | undefined => {
+  const i = process.argv.indexOf(`--${name}`);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+};
+
+/** Emit the per-company scoring context (one call) for the agent to judge over. */
+async function contextMode(): Promise<void> {
+  const db = createDb();
+  const limit = Number(argFlag("limit"));
+  const ctx = await buildScoringContext(
+    { companies: createCompanyRepo(db), people: createPersonRepo(db), roles: createRoleRepo(db) },
+    {
+      vertical: argFlag("vertical"),
+      hiringOnly: process.argv.includes("--hiring"),
+      limit: Number.isFinite(limit) ? limit : undefined,
+    },
+  );
+  console.log(JSON.stringify(ctx, null, 2));
 }
 
 /** The real path: persist the agent's judged scores from JSON. */
@@ -103,15 +129,17 @@ async function fakeMode(slug: string | undefined): Promise<void> {
 function usage(): never {
   console.error(
     "Usage:\n" +
+      "  pnpm score context        emit per-company scoring context as JSON [--vertical X] [--hiring] [--limit N]\n" +
       "  pnpm score apply [file]   persist agent-judged scores (JSON array via stdin or file)\n" +
       "  pnpm score --fake [slug]  deterministic rubric triage (offline test double)\n\n" +
-      "Real taste scoring is the `score-companies` skill — it emits the JSON for `score apply`.",
+      "Real taste scoring is the `score-companies` skill: `score context` → judge → `score apply`.",
   );
   process.exit(1);
 }
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
+  if (args[0] === "context") return contextMode();
   if (args[0] === "apply") return applyMode(args[1]);
   if (args.includes("--fake")) return fakeMode(args.find((a) => !a.startsWith("-")));
   usage();
