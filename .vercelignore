@@ -1,0 +1,21 @@
+# Vercel does NOT read .gitignore — list deploy-upload excludes here explicitly.
+# The web app is built from `src/` + config and reads a REMOTE Turso DB at
+# runtime, so none of the local data, caches, or agent-side tooling is a build
+# input. Without this file the upload balloons to ~200MB+ (local DB + .next) and
+# the deploy stalls.
+
+# Build artifacts + local databases/caches (rebuilt remotely / read from Turso)
+.next
+data
+
+# Agent-side tooling — never imported by the Next.js app, never run on Vercel
+scripts
+tests
+seed
+drizzle
+docs
+profile
+
+# Local-only
+.env*
+.vercel

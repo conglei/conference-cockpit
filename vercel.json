@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": [
+    "pdx1"
+  ],
+  "experimentalServices": {
+    "conference-compass": {
+      "type": "web",
+      "routePrefix": "/",
+      "framework": "nextjs",
+      "buildCommand": "corepack enable && pnpm install --frozen-lockfile && pnpm build"
+    }
+  }
+}
