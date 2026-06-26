@@ -2344,10 +2344,14 @@ a.session-speaker:hover {
   color: var(--accent);
 }
 .session-co {
-  color: var(--muted);
+  color: var(--fg-soft);
+  font-weight: 500;
 }
 a.session-co::before {
-  content: "· ";
+  content: "·";
+  margin-right: 0.4rem;
+  color: var(--faint);
+  font-weight: 400;
 }
 a.session-co:hover {
   color: var(--accent);
