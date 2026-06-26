@@ -29,18 +29,11 @@ export default async function RolesPage({
   const now = new Date();
 
   // Fetch the FULL dataset (all statuses); filtering happens client-side.
-  const roles = await roleRepo.list();
-  // Resolve each role's company once, then flatten name/slug/score/status onto
-  // each row so the client can render + rank by company fit without a DB call.
-  const companyById = new Map(
-    (
-      await Promise.all(
-        [...new Set(roles.map((r) => r.companyId))].map((id) => companyRepo.get(id)),
-      )
-    )
-      .filter((c): c is NonNullable<typeof c> => Boolean(c))
-      .map((c) => [c.id, c] as const),
-  );
+  // Two queries total: all roles + all companies. (Previously this did one
+  // `companyRepo.get(id)` PER company — ~250 sequential round-trips, which is
+  // brutally slow over a remote Turso DB.)
+  const [roles, allCompanies] = await Promise.all([roleRepo.listForCards(), companyRepo.list()]);
+  const companyById = new Map(allCompanies.map((c) => [c.id, c] as const));
 
   const rows: RoleRow[] = roles.map((r) => {
     const company = companyById.get(r.companyId);

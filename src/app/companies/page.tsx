@@ -15,13 +15,12 @@ export default async function CompaniesPage({
 }) {
   const sp = await searchParams;
   const db = getDb();
-  const companies = await createCompanyRepo(db).list();
-
-  // Open-role count per company (the strongest "active / worth your time" signal).
-  const roleCount = new Map<number, number>();
-  for (const r of await createRoleRepo(db).list()) {
-    roleCount.set(r.companyId, (roleCount.get(r.companyId) ?? 0) + 1);
-  }
+  // Two light queries (companies + a grouped role count) instead of loading all
+  // ~2,373 role rows just to count them — much faster over a remote DB.
+  const [companies, roleCount] = await Promise.all([
+    createCompanyRepo(db).list(),
+    createRoleRepo(db).countsByCompany(),
+  ]);
 
   const cards: CompanyCardData[] = companies.map((c) => ({
     slug: c.slug,

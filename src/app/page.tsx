@@ -181,8 +181,16 @@ const CSS = `
 .wtm-filters select, .wtm-filters button { font:inherit; padding:.4rem .6rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); color:var(--fg); }
 .wtm-filters button { cursor:pointer; background:var(--surface-2); font-size:.85rem; font-weight:600; }
 .wtm-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.6rem; }
-.wtm-card { display:flex; gap:.85rem; padding:.85rem 1rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); transition:border-color .15s ease, background-color .15s ease; }
-.wtm-card:hover { border-color:var(--border-strong); background:var(--surface-2); }
+.wtm-card { display:flex; gap:.85rem; padding:.85rem 1rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); transition:border-color .15s ease, background-color .15s ease, box-shadow .15s ease, transform .15s ease; animation: cc-fade-up .42s cubic-bezier(.22,1,.36,1) both; }
+.wtm-card:hover { border-color:var(--border-strong); background:var(--surface-2); box-shadow:var(--shadow-md); transform:translateY(-1px); }
+.wtm-list > li:nth-child(1) .wtm-card{animation-delay:.02s}
+.wtm-list > li:nth-child(2) .wtm-card{animation-delay:.05s}
+.wtm-list > li:nth-child(3) .wtm-card{animation-delay:.08s}
+.wtm-list > li:nth-child(4) .wtm-card{animation-delay:.11s}
+.wtm-list > li:nth-child(5) .wtm-card{animation-delay:.14s}
+.wtm-list > li:nth-child(6) .wtm-card{animation-delay:.17s}
+.wtm-list > li:nth-child(7) .wtm-card{animation-delay:.2s}
+.wtm-list > li:nth-child(n+8) .wtm-card{animation-delay:.22s}
 .wtm-body { min-width:0; display:flex; flex-direction:column; gap:.4rem; flex:1; }
 .wtm-line1 { display:flex; align-items:baseline; gap:.5rem; flex-wrap:wrap; }
 .wtm-saved { color:#f59e0b; font-size:.95rem; line-height:1; }

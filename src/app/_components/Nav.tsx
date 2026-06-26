@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
  */
 const EXPLORE = [
   { href: "/sessions", label: "Sessions" },
+  { href: "/people", label: "People" },
   { href: "/companies", label: "Companies" },
   { href: "/roles", label: "Roles" },
   { href: "/who-next", label: "Who next" },
