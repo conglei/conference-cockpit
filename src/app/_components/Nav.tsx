@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
  * reads as the product, not as one tab among five (product-design §11 Phase 4).
  */
 const EXPLORE = [
+  { href: "/sessions", label: "Sessions" },
   { href: "/companies", label: "Companies" },
   { href: "/roles", label: "Roles" },
   { href: "/who-next", label: "Who next" },
