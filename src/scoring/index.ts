@@ -43,6 +43,13 @@ export {
 } from "./score-run";
 
 export {
+  applyScores,
+  buildScoreResult,
+  type AppliedScoreInput,
+  type ApplyScoresResult,
+} from "./apply";
+
+export {
   SCORE_AXES,
   isScoreAxis,
   scoreValue,

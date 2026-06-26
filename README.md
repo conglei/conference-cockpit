@@ -152,17 +152,26 @@ CLIs — see [ADR-0002](docs/adr/0002-skills-vs-clis.md)). Lead with
 | --- | --- | --- |
 | [`who-to-meet`](.claude/skills/who-to-meet/SKILL.md) | **the primary doorway** — a people-first hit list, ranked directly by Intent | `pnpm who-to-meet` |
 | [`onboard`](.claude/skills/onboard/SKILL.md) | capture your résumé + goals so ranking is *yours* (optional) | `pnpm onboard` |
+| [`score-companies`](.claude/skills/score-companies/SKILL.md) | the agent judges your taste scores from preferences + founder/funding signal and persists them — turns neutral ranking into *yours* | `pnpm score apply` |
 | [`company-brief`](.claude/skills/company-brief/SKILL.md) | one company, deep + sourced (who to meet there, with talk slots) | `pnpm conf-brief <slug>` |
 | [`draft-outreach`](.claude/skills/draft-outreach/SKILL.md) | personalize a copy-ready draft (never sends) | `pnpm conf-brief <slug>` · `pnpm conf-followup draft` |
 | [`met-log`](.claude/skills/met-log/SKILL.md) | log who you met, advance the funnel (met → contacted → replied) | `pnpm conf-followup` |
 | [`plan-conference`](.claude/skills/plan-conference/SKILL.md) | a company *grouping view* over the ranked people (secondary) | `pnpm conf-plan` |
 
 **Make it yours (optional).** Out of the box the ranking is *neutral* (public
-facts). To rank by your taste — founder bar, domain, stage — run the `onboard`
-skill (or `pnpm onboard --resume <file>`): it interviews you and writes
-[`profile/preferences.md`](profile/) (+ `narrative.md`, `resume.md`), which the
-engine re-reads on every run. No code, no keys; `profile/` is gitignored and
-never committed.
+facts). Personalizing is two steps:
+
+1. **`onboard`** (or `pnpm onboard --resume <file>`) interviews you and writes
+   [`profile/preferences.md`](profile/) (+ `narrative.md`, `resume.md`) — your
+   taste **weights + hard filters**, in plain language.
+2. **`score-companies`** then *applies* that taste: the agent reads your
+   preferences + each company's founder/funding/domain signal, judges the taste
+   sub-scores, and persists them (`pnpm score apply`). This is the step that flips
+   ranking from neutral to yours — and because the person scorer folds in company
+   taste, it personalizes **who-to-meet** too, not just the company plan.
+
+No code, no keys; `profile/` is gitignored and never committed. (The judgment is
+the agent's; the CLI only persists — it computes `overall` from your weights.)
 
 ### How the agent reads the graph
 
