@@ -77,14 +77,6 @@ export default async function PersonBriefPage({
 
   return (
     <main className="brief">
-      <nav className="brief-back">
-        {company ? (
-          <a href={`/companies/${company.slug}`}>← {company.name}</a>
-        ) : (
-          <a href="/companies">← Companies</a>
-        )}
-      </nav>
-
       {/* ---- Hero ---- */}
       <header className="person-hero">
         <Avatar name={person.name} src={person.photoUrl} size={72} />
