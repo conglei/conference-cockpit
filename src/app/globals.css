@@ -1997,6 +1997,35 @@ a.role-card-company:hover {
 /* ============================================================
    Sessions / agenda explorer
    ============================================================ */
+.sessions-days {
+  align-items: center;
+}
+.day-date {
+  color: var(--muted);
+  font-weight: 400;
+}
+.filter[data-active="true"] .day-date {
+  color: color-mix(in srgb, var(--accent-on) 80%, transparent);
+}
+.day-today {
+  margin-left: 0.4rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--good);
+}
+.filter[data-active="true"] .day-today {
+  color: var(--accent-on);
+}
+.sessions-status {
+  margin-left: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .sessions-controls {
   display: flex;
   flex-wrap: wrap;

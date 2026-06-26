@@ -9,6 +9,11 @@ import SessionsExplorer, {
 // Read the DB at request time, not build time.
 export const dynamic = "force-dynamic";
 
+// Day 1 of the conference (Workshop Day). Override per-conference via env.
+// "Day N — …" maps to CONFERENCE_START + (N-1) days, giving real calendar dates
+// so the "happening now" marker is a true date+time match, not just time-of-day.
+const CONFERENCE_START = process.env.CONFERENCE_START_DATE ?? "2026-06-29";
+
 /** Parse "10:45am" → minutes-of-day (for ordering + "happening now"). */
 function toMinutes(clock: string | undefined): number | null {
   if (!clock) return null;
@@ -17,6 +22,15 @@ function toMinutes(clock: string | undefined): number | null {
   let h = Number(m[1]) % 12;
   if (/pm/i.test(m[3])) h += 12;
   return h * 60 + Number(m[2]);
+}
+
+/** "Day 2 — Session Day 1" → ISO date (CONFERENCE_START + 1 day). */
+function dateForDay(dayLabel: string): string | null {
+  const m = dayLabel.match(/day\s+(\d+)/i);
+  if (!m) return null;
+  const [y, mo, d] = CONFERENCE_START.split("-").map(Number);
+  // Date.UTC handles month rollover (Jun 29 + 3 → Jul 2); slice keeps Y-M-D.
+  return new Date(Date.UTC(y, mo - 1, d + (Number(m[1]) - 1))).toISOString().slice(0, 10);
 }
 
 export default async function SessionsPage() {
@@ -42,6 +56,7 @@ export default async function SessionsPage() {
       id: t.id,
       title: t.title,
       day: t.day ?? "Unscheduled",
+      date: t.day ? dateForDay(t.day) : null,
       time: t.time ?? null,
       startMin: toMinutes(startRaw),
       endMin: toMinutes(endRaw),
@@ -69,8 +84,8 @@ export default async function SessionsPage() {
       </p>
       <h1>Sessions</h1>
       <p className="subtitle">
-        {rows.length} talks across {new Set(rows.map((r) => r.day)).size} days —
-        browse the agenda, jump to what&apos;s on now.
+        {rows.length} talks · Jun 29 – Jul 2, 2026 — browse the agenda, jump to
+        what&apos;s on now.
       </p>
 
       <SessionsExplorer sessions={rows} />

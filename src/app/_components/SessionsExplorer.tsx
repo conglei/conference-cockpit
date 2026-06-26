@@ -7,6 +7,7 @@ export type SessionRow = {
   id: number;
   title: string;
   day: string;
+  date: string | null;
   time: string | null;
   startMin: number | null;
   endMin: number | null;
@@ -25,6 +26,18 @@ function dayShort(day: string): string {
 /** Just the start clock for the time rail: "10:45am" from "10:45am-11:05am". */
 function startClock(time: string | null): string {
   return time ? time.split(/[-–]/)[0].trim() : "—";
+}
+/** ISO "2026-06-29" → "Jun 29". */
+function fmtDate(iso: string | null): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+/** Local wall-clock date as ISO "YYYY-MM-DD" (no UTC drift). */
+function localISO(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 /**
@@ -47,20 +60,32 @@ export default function SessionsExplorer({
     [sessions],
   );
 
+  // Each day's real calendar date (from the server's CONFERENCE_START mapping).
+  const dateByDay = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const s of sessions) if (!m.has(s.day)) m.set(s.day, s.date);
+    return m;
+  }, [sessions]);
+
   const [day, setDay] = useState<string>(days[0] ?? "");
   const [track, setTrack] = useState<string>("all");
   const [q, setQ] = useState<string>("");
 
-  // A live minute-of-day clock for the "now" marker (refreshes each minute).
-  const [nowMin, setNowMin] = useState<number | null>(null);
+  // A live wall-clock timestamp for the "now" marker (refreshes each minute).
+  const [nowTs, setNowTs] = useState<number | null>(null);
   useEffect(() => {
-    const tick = () => {
-      const d = new Date();
-      setNowMin(d.getHours() * 60 + d.getMinutes());
-    };
+    const tick = () => setNowTs(Date.now());
     tick();
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
+  }, []);
+
+  // On mount, jump to the day that IS today (if the conference is in progress).
+  useEffect(() => {
+    const todayISO = localISO(Date.now());
+    const todayDay = [...dateByDay.entries()].find(([, d]) => d === todayISO)?.[0];
+    if (todayDay) setDay(todayDay);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -84,29 +109,54 @@ export default function SessionsExplorer({
     });
   }, [sessions, day, track, q]);
 
-  const isNow = (s: SessionRow) =>
-    nowMin != null &&
-    s.startMin != null &&
-    s.endMin != null &&
-    nowMin >= s.startMin &&
-    nowMin < s.endMin;
+  // Live = the real now falls inside this session's date + time window.
+  const isNow = (s: SessionRow) => {
+    if (nowTs == null || !s.date || s.startMin == null || s.endMin == null) return false;
+    const [y, m, d] = s.date.split("-").map(Number);
+    const start = new Date(y, m - 1, d, 0, s.startMin).getTime();
+    const end = new Date(y, m - 1, d, 0, s.endMin).getTime();
+    return nowTs >= start && nowTs < end;
+  };
 
   const liveCount = rows.filter(isNow).length;
 
+  // Conference status relative to today: before / during / after.
+  const dates = [...dateByDay.values()].filter(Boolean).sort() as string[];
+  const status = (() => {
+    if (nowTs == null || dates.length === 0) return null;
+    const today = localISO(nowTs);
+    const first = dates[0];
+    const last = dates[dates.length - 1];
+    if (today < first) {
+      const days = Math.round((Date.parse(first) - Date.parse(today)) / 86_400_000);
+      return `Starts ${fmtDate(first)} · in ${days} day${days === 1 ? "" : "s"}`;
+    }
+    if (today > last) return `Ended ${fmtDate(last)}`;
+    return `Live · ${fmtDate(today)}`;
+  })();
+
   return (
     <>
-      <nav className="filters" aria-label="day">
-        {days.map((d) => (
-          <button
-            key={d}
-            type="button"
-            className="filter"
-            data-active={day === d}
-            onClick={() => setDay(d)}
-          >
-            {dayShort(d)}
-          </button>
-        ))}
+      <nav className="filters sessions-days" aria-label="day">
+        {days.map((d) => {
+          const today = nowTs != null && dateByDay.get(d) === localISO(nowTs);
+          return (
+            <button
+              key={d}
+              type="button"
+              className="filter"
+              data-active={day === d}
+              onClick={() => setDay(d)}
+            >
+              {dayShort(d)}
+              {dateByDay.get(d) ? (
+                <span className="day-date"> · {fmtDate(dateByDay.get(d)!)}</span>
+              ) : null}
+              {today ? <span className="day-today">today</span> : null}
+            </button>
+          );
+        })}
+        {status ? <span className="sessions-status">{status}</span> : null}
       </nav>
 
       <div className="sessions-controls">
