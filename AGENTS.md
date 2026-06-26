@@ -18,6 +18,23 @@ runbook over a deterministic CLI (`pnpm onboard`, `pnpm conf-plan`,
 `pnpm who-to-meet`, `pnpm conf-brief`, `pnpm conf-followup`); see
 [ADR-0002](docs/adr/0002-skills-vs-clis.md) for the skills-vs-CLIs split.
 
+### Exploring the data (read)
+
+For ad-hoc reads beyond the fixed skills, use **`pnpm query`** — a scoped,
+**read-only** window into the graph that returns compact, capped, paginated
+results (add `--json`). Narrow with `search`, then `get` detail on the few you
+shortlist — you do the ranking, the CLI just serves trustworthy data. It cannot
+write (writes are `conf-followup target | met`). See
+[ADR-0005](docs/adr/0005-agent-query-cli.md).
+
+```bash
+pnpm query people --vertical "AI in Healthcare" --speaking --json
+pnpm query companies --hiring --q inference --json
+pnpm query roles --workType remote --limit 30 --json
+pnpm query get person ari-morcos --json
+pnpm query verticals --json
+```
+
 ### Issue tracker
 
 Issues and PRDs live as local markdown under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.

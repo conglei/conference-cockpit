@@ -34,6 +34,7 @@
     "roll-up-verticals": "tsx scripts/roll-up-verticals.ts",
     "similar-speakers": "tsx scripts/similar-speakers.ts",
     "who-to-meet": "tsx scripts/who-to-meet.ts",
+    "query": "tsx scripts/query.ts",
     "conf-plan": "tsx scripts/conf-plan.ts",
     "conf-brief": "tsx scripts/conf-brief.ts",
     "conf-followup": "tsx scripts/conf-followup.ts",
