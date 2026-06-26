@@ -26,5 +26,11 @@ services:
         sync: false # libsql://<your-db>.turso.io
       - key: TURSO_AUTH_TOKEN
         sync: false # a READ-ONLY DB token — the web only reads
+      # Optional privacy gate — set SITE_PASSWORD to require a login (HTTP Basic
+      # Auth) before the UI renders. Leave unset for a public site.
+      # - key: SITE_USER
+      #   value: admin
+      # - key: SITE_PASSWORD
+      #   sync: false
       # - key: CONFERENCE_START_DATE
       #   value: "2026-06-29"   # optional; controls the Sessions day labels

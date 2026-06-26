@@ -104,7 +104,17 @@ score, not a gate. See
 
 ---
 
-## Quickstart — clone and run in under a minute
+## Run it — three ways
+
+Three configurations, and they compose. Start local; point at a cloud DB when you
+want Claude Code (local *or* in the cloud) and the web to share data; deploy the
+web app for a public URL.
+
+1. **[Local](#1-local-no-keys-no-cloud)** — your laptop, a SQLite file, no keys.
+2. **[Shared cloud DB](#2-shared-cloud-db-turso)** — the agent + the web on one Turso DB.
+3. **[Deploy online](#3-deploy-the-web-app-online)** — a public URL, optionally password-protected.
+
+### 1. Local (no keys, no cloud)
 
 ```bash
 pnpm install
@@ -174,11 +184,63 @@ Writes stay on narrow, deliberate verbs — `pnpm conf-followup target` (save to
 your who-to-meet list) and `pnpm conf-followup met` (log an encounter). There is
 no general update/delete surface and, by design, **no send path**.
 
-### Cloud option (optional)
+### 2. Shared cloud DB (Turso)
 
-The data layer is **libSQL**, so `DATABASE_URL` can point at a local file
-(default) *or* a Turso cloud DB (a `libsql://` URL + `TURSO_AUTH_TOKEN`) — same
-code, enabling a hosted version where the agent and the web app share one DB.
+libSQL means the same code runs against a local file *or* a **Turso** cloud DB.
+Point your local CLIs, **Claude Code in the cloud**, and the deployed web app at
+one DB and changes show up everywhere on refresh.
+
+```bash
+turso db create aie-2026
+turso db tokens create aie-2026            # a read-write token (for seeding / agent writes)
+```
+
+Put both in `.env.local`, then seed once — the CLIs honor `DATABASE_URL`:
+
+```bash
+# .env.local
+DATABASE_URL=libsql://<your-db>.turso.io
+TURSO_AUTH_TOKEN=<token>
+# then:  pnpm db:migrate && pnpm seed-demo   # now targets Turso, not the local file
+```
+
+For **Claude Code in the cloud**, set the same two vars in that environment and
+allowlist `*.turso.io` for egress. The agent edits the graph; your `pnpm dev`
+(and the deployed site) reflect it on refresh. Give the *public* web app a
+**read-only** token (below); use read-write only where you seed or let the agent write.
+
+### 3. Deploy the web app online
+
+The web app is **server-rendered** — every data page is `force-dynamic` and reads
+Turso at request time — so deploy it as a **Node web service, not a static site**.
+Two things make this simple: the build needs **no secrets** (dynamic pages render
+per-request, never at build), and the app only ever **reads** the DB (saving and
+met-logging happen through the agent), so it runs on a **read-only** Turso token.
+There is no separate API service — the Next.js server *is* the backend.
+
+**Render (Blueprint).** A [`render.yaml`](render.yaml) is included.
+
+1. Create a read-only DB token: `turso db tokens create <your-db> --read-only`.
+2. Render Dashboard → **New → Blueprint** → pick this repo. It provisions a Node
+   web service (`pnpm build` → `pnpm start`); pick a region near your DB
+   (e.g. **Oregon** for `aws-us-west-2`).
+3. Set the runtime env vars (marked `sync: false`, entered in the dashboard,
+   never committed): `DATABASE_URL` = `libsql://<your-db>.turso.io` and
+   `TURSO_AUTH_TOKEN` = the **read-only** token.
+
+**Any Node host works** — it's a stock Next.js app. Vercel is zero-config (import
+the repo, set the same env vars); Fly.io / Railway / a container run `pnpm build`
+then `pnpm start`.
+
+#### Keep it private (optional)
+
+A solo deployment is **public by default**. To require a login, set
+**`SITE_PASSWORD`** (and optionally `SITE_USER`, default `admin`) in the host's
+env: an opt-in HTTP Basic Auth gate ([`src/middleware.ts`](src/middleware.ts))
+then challenges every request before any page renders. Leave it unset and the site
+is open. It protects the **web UI only** — the agent reads the DB directly, not
+through the app — so always serve over HTTPS (Render/Vercel do). For more than a
+shared password, front it with Cloudflare Access or your host's own auth.
 
 ### Bring your own conference (optional)
 
@@ -213,39 +275,6 @@ live AIE feeds but accept a local snapshot path; nothing is overwritten with a
 blank, so re-running only fills gaps.
 
 ---
-
-## Deploy the web app
-
-The web app is **server-rendered** — every data page is `force-dynamic` and reads
-Turso at request time — so deploy it as a **Node web service, not a static site**.
-Two things make this simple: the build needs **no secrets** (dynamic pages render
-per-request, never at build), and the app only ever **reads** the DB (saving and
-met-logging happen through the agent), so it runs on a **read-only** Turso token.
-There is no separate API service — the Next.js server *is* the backend.
-
-**Render (Blueprint).** A [`render.yaml`](render.yaml) is included.
-
-1. Create a read-only DB token: `turso db tokens create <your-db> --read-only`.
-2. Render Dashboard → **New → Blueprint** → pick this repo. It provisions a Node
-   web service (`pnpm build` → `pnpm start`); pick a region near your DB
-   (e.g. **Oregon** for `aws-us-west-2`).
-3. Set the two runtime env vars (marked `sync: false`, so they're entered in the
-   dashboard, never committed):
-   - `DATABASE_URL` = `libsql://<your-db>.turso.io`
-   - `TURSO_AUTH_TOKEN` = the **read-only** token
-
-**Any Node host works** — it's a stock Next.js app. Vercel is zero-config (import
-the repo, set the same two env vars); Fly.io / Railway / a container just run
-`pnpm build` then `pnpm start`.
-
-**Seed the cloud DB once** (independent of the web deploy). Point the CLIs at
-Turso — put the `libsql://` URL and a **read-write** token in `.env.local` — then:
-
-```bash
-pnpm db:migrate && pnpm seed-demo     # now targets Turso, not the local file
-```
-
-The deployed web app then reads that DB with its separate read-only token.
 
 ## Hard rules
 
