@@ -31,7 +31,7 @@ vocabulary (Person · Intent · Plan · Warm path · Watchlist) lives in
 You → Claude Code:  "Who should I meet at AIE 2026, and why?"
 ```
 
-Claude runs the `who-to-meet` skill → `pnpm who-to-meet`:
+Claude runs the `who-to-meet` skill:
 
 ```
 Who to meet [Career Mover] — top 12 of 488 people
@@ -121,19 +121,17 @@ pnpm install
 pnpm db:migrate            # create the schema (default DB: a local libSQL file at data/conference.db)
 pnpm seed-demo             # load the full AIE 2026 dataset from the committed snapshot
 pnpm dev                   # the web view at localhost:3000
-# or, in the terminal:
-pnpm who-to-meet           # the people-first hit list
 ```
 
-That's the whole setup. **No API keys. No enrichment. No external services.**
+That's the whole setup — **no API keys, no enrichment, no external services.**
+From here you drive it in **Claude Code**: start with the **`onboard`** skill (so
+the ranking reflects your taste), then **`who-to-meet`** — see [the skills](#use-it-from-claude-code) below.
 
 > **The data is already in the repo.** The committed snapshot
 > ([`seed/demo-snapshot.json`](seed/)) is the *complete* conference graph — all
 > **~297 companies**, **~488 speakers** (with bios + photos), **~552 talks**, and
 > **~2,373 open roles**. `pnpm seed-demo` loads every bit of it into a local
-> libSQL/SQLite DB in seconds. You do **not** run any enrichment to use the
-> demo — that pipeline is only for [bringing your own
-> conference](#bring-your-own-conference-optional).
+> libSQL/SQLite DB in seconds. You do **not** run any enrichment to use the demo.
 
 **On the data layout:** the working databases (`data/*.db`) are **gitignored**,
 not committed — `seed-demo` rebuilds `data/conference.db` from the snapshot, so a
@@ -144,60 +142,49 @@ default; your [`profile/preferences.md`](profile/) re-ranks it to your taste).
 
 ### Use it from Claude Code
 
-The agent surface is a set of skills (judgment in the runbook, mechanics in
-CLIs — see [ADR-0002](docs/adr/0002-skills-vs-clis.md)). Lead with
-**`who-to-meet`** — it's the primary doorway.
+You drive everything by talking to **Claude Code** — the agent invokes these
+skills (judgment in the runbook; the mechanics are internal — see
+[ADR-0002](docs/adr/0002-skills-vs-clis.md)). **Start with `onboard`.**
 
-| Skill | What it does | CLI |
-| --- | --- | --- |
-| [`who-to-meet`](.claude/skills/who-to-meet/SKILL.md) | **the primary doorway** — a people-first hit list, ranked directly by Intent | `pnpm who-to-meet` |
-| [`onboard`](.claude/skills/onboard/SKILL.md) | capture your résumé + goals so ranking is *yours* (optional) | `pnpm onboard` |
-| [`score-companies`](.claude/skills/score-companies/SKILL.md) | the agent judges your taste scores from preferences + founder/funding signal and persists them — turns neutral ranking into *yours* | `pnpm score apply` |
-| [`company-brief`](.claude/skills/company-brief/SKILL.md) | one company, deep + sourced (who to meet there, with talk slots) | `pnpm conf-brief <slug>` |
-| [`draft-outreach`](.claude/skills/draft-outreach/SKILL.md) | personalize a copy-ready draft (never sends) | `pnpm conf-brief <slug>` · `pnpm conf-followup draft` |
-| [`met-log`](.claude/skills/met-log/SKILL.md) | log who you met, advance the funnel (met → contacted → replied) | `pnpm conf-followup` |
-| [`plan-conference`](.claude/skills/plan-conference/SKILL.md) | a company *grouping view* over the ranked people (secondary) | `pnpm conf-plan` |
+| Skill | What it does |
+| --- | --- |
+| [`onboard`](.claude/skills/onboard/SKILL.md) | **start here** — capture your résumé + goals so the ranking is *yours* |
+| [`score-companies`](.claude/skills/score-companies/SKILL.md) | apply your taste — judge company scores from your preferences + each company's founder/funding signal, turning neutral ranking into yours |
+| [`who-to-meet`](.claude/skills/who-to-meet/SKILL.md) | the people-first hit list — who to meet, when, why, with a draft opener |
+| [`company-brief`](.claude/skills/company-brief/SKILL.md) | one company, deep + sourced (who to meet there, with talk slots) |
+| [`draft-outreach`](.claude/skills/draft-outreach/SKILL.md) | personalize a copy-ready draft (never sends) |
+| [`met-log`](.claude/skills/met-log/SKILL.md) | log who you met, advance the funnel (met → contacted → replied) |
+| [`plan-conference`](.claude/skills/plan-conference/SKILL.md) | a company *grouping view* over the ranked people |
 
-**Make it yours (optional).** Out of the box the ranking is *neutral* (public
-facts). Personalizing is two steps:
+**Make it yours.** Out of the box the ranking is *neutral* (public facts).
+Personalizing is two skills: **`onboard`** interviews you and writes your taste to
+[`profile/preferences.md`](profile/) (+ `narrative.md`, `resume.md`); then
+**`score-companies`** applies it — the agent judges each company against your
+preferences and persists the scores, which flips ranking from neutral to yours
+(and, because the person scorer folds in company taste, personalizes
+**who-to-meet** too). No code, no keys; `profile/` is gitignored and never committed.
 
-1. **`onboard`** (or `pnpm onboard --resume <file>`) interviews you and writes
-   [`profile/preferences.md`](profile/) (+ `narrative.md`, `resume.md`) — your
-   taste **weights + hard filters**, in plain language.
-2. **`score-companies`** then *applies* that taste: the agent reads your
-   preferences + each company's founder/funding/domain signal, judges the taste
-   sub-scores, and persists them (`pnpm score apply`). This is the step that flips
-   ranking from neutral to yours — and because the person scorer folds in company
-   taste, it personalizes **who-to-meet** too, not just the company plan.
+### Why the agent talks to the DB directly (and the caveat)
 
-No code, no keys; `profile/` is gitignored and never committed. (The judgment is
-the agent's; the CLI only persists — it computes `overall` from your weights.)
+We deliberately **did not** put an MCP server in front of the data. For this
+workload MCP added protocol overhead without earning it — and, more importantly,
+it's worse for **context management**: round-tripping rows through a tool boundary
+bloats the agent's context fast. So the agent reads the graph directly, through a
+**scoped, read-only** layer (not MCP, not raw SQL —
+[ADR-0005](docs/adr/0005-agent-query-cli.md)): compact, capped reads that *cannot*
+mutate data, with writes confined to narrow verbs (save to your list, log an
+encounter) and **no send path** — drafts only.
 
-### How the agent reads the graph
-
-The agent explores the conference graph through **one scoped, read-only query
-CLI** — `pnpm query` — not MCP and not raw SQL
-([ADR-0005](docs/adr/0005-agent-query-cli.md)). It returns compact, capped
-results so curation stays cheap, and the read-only handle blocks every write at
-the seam — exploration can't corrupt data:
-
-```bash
-pnpm query people    --vertical Healthcare --speaking   # narrow, projected list
-pnpm query companies --hiring                           # firmographic facets
-pnpm query roles     --workType remote
-pnpm query get person <slug>                            # rich detail (with provenance) on the shortlist
-pnpm query verticals                                    # facet for cheap narrowing
-```
-
-Writes stay on narrow, deliberate verbs — `pnpm conf-followup target` (save to
-your who-to-meet list) and `pnpm conf-followup met` (log an encounter). There is
-no general update/delete surface and, by design, **no send path**.
+The honest trade-off: this **exposes the database to the agent**. It's not the
+most locked-down design. We keep it safe-by-default (read-only handle, projected
++ capped reads, no general write/delete surface), but if you point this at
+sensitive or private data, **use it at your own risk**.
 
 ### 2. Shared cloud DB (Turso)
 
 libSQL means the same code runs against a local file *or* a **Turso** cloud DB.
-Point your local CLIs, **Claude Code in the cloud**, and the deployed web app at
-one DB and changes show up everywhere on refresh.
+Point **Claude Code (local or in the cloud)** and the deployed web app at one DB
+and changes show up everywhere on refresh.
 
 ```bash
 turso db create aie-2026
@@ -251,38 +238,6 @@ is open. It protects the **web UI only** — the agent reads the DB directly, no
 through the app — so always serve over HTTPS (Render/Vercel do). For more than a
 shared password, front it with Cloudflare Access or your host's own auth.
 
-### Bring your own conference (optional)
-
-> Everything below is **only** for pointing Compass at a *different* conference.
-> To run the AIE 2026 demo you can **skip this entirely** — the data is already
-> seeded.
-
-The schema is conference-agnostic. Ingest a new event by importing its companies
-([`pnpm import-csv`](scripts/import-csv.ts)) and its agenda
-([`pnpm ingest-talks <agenda.json>`](scripts/ingest-talks.ts), shaped like
-[`seed/aie-wf-2026.json`](seed/)), then enrich + score with the CLIs below.
-
-#### Enrich for search & query
-
-The conference graph is sharpened by a few idempotent passes (safe to re-run).
-These need API keys (`cp .env.example .env.local`) and are **not** required for
-the demo:
-
-```bash
-pnpm backfill-from-cache   # replay cached Apollo org-enrich into companies
-                           # (industry, keywords, location, founded, headcount) — zero API spend
-pnpm ingest-speakers       # speaker bios + photos onto people rows
-pnpm enrich-people         # deep per-person LinkedIn profile (work history, education,
-                           # headline, about) — ~$0.0064/person, cached on re-run
-pnpm roll-up-verticals     # company.verticals from speakers' talk tracks (e.g. "AI in Healthcare")
-pnpm ingest-embeddings     # per-speaker vectors for semantic search
-pnpm similar-speakers "<name>"   # "find speakers like this one" (offline, no embedding API)
-```
-
-`pnpm backfill-from-cache`/`ingest-speakers`/`ingest-embeddings` default to the
-live AIE feeds but accept a local snapshot path; nothing is overwritten with a
-blank, so re-running only fills gaps.
-
 ---
 
 ## Data & provenance
@@ -319,7 +274,7 @@ functions over a typed data layer; the app and the skills are thin adapters over
 it.
 
 ```bash
-pnpm test                  # the full suite (~376 tests across 47 files)
+pnpm test                  # the full suite (~386 tests across 50 files)
 pnpm exec tsc --noEmit
 ```
 
