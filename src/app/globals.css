@@ -1898,6 +1898,21 @@ a.role-item-title:hover {
   flex-direction: column;
   gap: 0.7rem;
 }
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  margin: 1.25rem 0 0.25rem;
+  flex-wrap: wrap;
+}
+.pager .filter[disabled] {
+  opacity: 0.4;
+  cursor: default;
+}
+.pager .muted {
+  font-variant-numeric: tabular-nums;
+}
 .role-card {
   border: 1px solid var(--border);
   border-radius: var(--radius);

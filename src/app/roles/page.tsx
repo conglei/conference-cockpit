@@ -1,5 +1,4 @@
 import { getDb } from "@/db/client";
-import { cleanText } from "@/db/columns";
 import { createCompanyRepo, createRoleRepo } from "@/db/repository";
 import { roleProvenance, formatChip, isThin } from "@/provenance";
 import RolesExplorer, { type RoleRow } from "../_components/RolesTable";
@@ -8,6 +7,8 @@ import { ROLE_SORT_KEYS, type RoleSortKey, type SortDir } from "@/ui/table-sort"
 // The DB is read at request time, not build time.
 export const dynamic = "force-dynamic";
 
+const PAGE_SIZE = 50;
+
 function isSortKey(v: string | undefined): v is RoleSortKey {
   return !!v && (ROLE_SORT_KEYS as readonly string[]).includes(v);
 }
@@ -15,28 +16,45 @@ function isSortKey(v: string | undefined): v is RoleSortKey {
 export default async function RolesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    workType?: string;
+    sort?: string;
+    dir?: string;
+    page?: string;
+  }>;
 }) {
-  const { status, sort, dir } = await searchParams;
-  // Default sort is recency — neutral and useful with or without taste scores.
-  // (Company fit is a bonus axis, offered only when scores exist.)
-  const sortKey: RoleSortKey = isSortKey(sort) ? sort : "posted";
-  const sortDir: SortDir = dir === "asc" ? "asc" : "desc";
+  const sp = await searchParams;
+  const q = sp.q ?? "";
+  const status = sp.status ?? "all";
+  const workType = sp.workType ?? "all";
+  const sortKey: RoleSortKey = isSortKey(sp.sort) ? sp.sort : "posted";
+  const sortDir: SortDir = sp.dir === "asc" ? "asc" : "desc";
+  const page = Math.max(1, Number(sp.page) || 1);
 
   const db = getDb();
   const roleRepo = createRoleRepo(db);
   const companyRepo = createCompanyRepo(db);
   const now = new Date();
 
-  // Fetch the FULL dataset (all statuses); filtering happens client-side.
-  // Two queries total: all roles + all companies. (Previously this did one
-  // `companyRepo.get(id)` PER company — ~250 sequential round-trips, which is
-  // brutally slow over a remote Turso DB.)
-  const [roles, allCompanies] = await Promise.all([roleRepo.listForCards(), companyRepo.list()]);
-  const companyById = new Map(allCompanies.map((c) => [c.id, c] as const));
+  // Filter + search + sort + paginate AT THE DB — one small page per request,
+  // not the whole ~4.6k-role dataset. Three light queries run in parallel.
+  const [{ rows: pageRows, total }, workTypes, anyScored] = await Promise.all([
+    roleRepo.listRolesPage({
+      status,
+      workType,
+      q,
+      sort: sortKey,
+      dir: sortDir,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    }),
+    roleRepo.roleWorkTypes(),
+    companyRepo.anyScored(),
+  ]);
 
-  const rows: RoleRow[] = roles.map((r) => {
-    const company = companyById.get(r.companyId);
+  const rows: RoleRow[] = pageRows.map((r) => {
     const prov = roleProvenance(r, now);
     return {
       id: r.id,
@@ -45,20 +63,18 @@ export default async function RolesPage({
       location: r.location,
       workType: r.workType,
       salary: r.salary,
-      description: cleanText(r.description),
       postedDate: r.postedDate,
       status: r.status,
       source: r.source,
       postedChip: formatChip(prov, now),
       postedThin: isThin(prov, now),
-      companyName: company?.name ?? null,
-      companySlug: company?.slug ?? null,
-      companyScore:
-        company?.scoreOverall != null
-          ? Math.round(company.scoreOverall * 100)
-          : null,
+      companyName: r.companyName,
+      companySlug: r.companySlug,
+      companyScore: r.companyScore != null ? Math.round(r.companyScore * 100) : null,
     };
   });
+
+  const filtered = q !== "" || status !== "all" || workType !== "all";
 
   return (
     <main>
@@ -67,15 +83,21 @@ export default async function RolesPage({
       </p>
       <h1>Open roles</h1>
       <p className="subtitle">
-        {rows.length} roles across {new Set(rows.map((r) => r.companySlug).filter(Boolean)).size}{" "}
-        companies — newest first, every posting dated.
+        {total.toLocaleString()} {filtered ? "matching " : ""}roles — newest first, every posting dated.
       </p>
 
       <RolesExplorer
-        roles={rows}
-        initialStatus={status}
-        initialSort={sortKey}
-        initialDir={sortDir}
+        rows={rows}
+        total={total}
+        page={page}
+        pageSize={PAGE_SIZE}
+        q={q}
+        status={status}
+        workType={workType}
+        workTypes={workTypes}
+        sort={sortKey}
+        dir={sortDir}
+        anyScored={anyScored}
       />
     </main>
   );
